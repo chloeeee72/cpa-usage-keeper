@@ -999,7 +999,7 @@ describe('UsagePage toolbar styles', () => {
 
   it('reflows the model pricing form from four to two to one column based on its container width', () => {
     expect(priceSettingsSource).toContain('className={`${styles.formField} ${styles.priceFormModelField}`}')
-    expect(priceSettingsSource).toContain('className={styles.priceFormAction}')
+    expect(priceSettingsSource).toContain('className={`${styles.formField} ${styles.priceFormAction}`}')
     expect(priceSettingsSource).toContain('appearance="action"')
     expect(styleRuleBlock(usagePageStyles, '.priceFormAction:global(.btn.btn-action)')).toMatch(/min-height:\s*40px;/)
     expect(usagePageStyles).toMatch(/\.priceForm\s*\{[\s\S]*?container-name:\s*model-pricing-form;/)

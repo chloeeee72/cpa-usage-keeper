@@ -1,9 +1,7 @@
 /// <reference types="vite/client" />
 
-interface ImportMetaEnv {}
-
 interface ImportMeta {
-  readonly env: ImportMetaEnv;
+  readonly env: Record<string, unknown>;
 }
 
 declare module '*.module.scss' {

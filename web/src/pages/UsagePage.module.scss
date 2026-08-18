@@ -761,6 +761,16 @@
   background: color-mix(in srgb, var(--primary-color) 10%, var(--bg-primary));
 }
 
+.apiKeySettingsTitleMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.apiKeySettingsCard :global(.keeper-card-title-meta) {
+  margin-left: auto;
+}
+
 .cardHeaderCompact {
   gap: 14px;
   align-items: flex-start;
@@ -1774,6 +1784,43 @@
   container-type: inline-size;
 }
 
+.priceFormHeaderRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  gap: 10px;
+  align-items: flex-end;
+  margin-bottom: 10px;
+}
+
+.priceFormHeaderRowThreeFields {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+}
+
+.priceFormPeakTimeSection {
+  margin-top: 10px;
+}
+
+.priceFormPeakRows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.priceFormPeakRow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.priceFormPriceRow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  align-items: flex-end;
+}
+
 .formRow {
   display: grid;
   grid-template-columns: minmax(180px, 1.4fr) minmax(130px, 0.85fr) repeat(5, minmax(120px, 1fr)) auto;
@@ -1824,7 +1871,7 @@
 
 .priceFormAction {
   align-self: end;
-  justify-self: stretch;
+  justify-self: end;
 }
 
 .priceFormAction:global(.btn.btn-action) {
@@ -1846,10 +1893,36 @@
   .priceFormAction {
     grid-column: 1 / -1;
   }
+
+  .priceFormHeaderRow,
+  .priceFormHeaderRowThreeFields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .priceFormHeaderRow .priceFormAction,
+  .priceFormHeaderRowThreeFields .priceFormAction {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+  }
+
+  .priceFormPriceRow,
+  .priceFormPeakRow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @container model-pricing-form (max-width: 480px) {
   .formRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .priceFormHeaderRow,
+  .priceFormHeaderRowThreeFields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .priceFormPriceRow,
+  .priceFormPeakRow {
     grid-template-columns: minmax(0, 1fr);
   }
 }
