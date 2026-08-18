@@ -9,4 +9,5 @@ type ModelPriceSettingInput struct {
 	CacheReadPricePer1M  float64
 	CacheWritePricePer1M float64
 	PriceMultiplier      *float64
+	PeakHoursConfig      *string
 }

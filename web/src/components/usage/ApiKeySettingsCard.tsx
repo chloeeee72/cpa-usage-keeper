@@ -86,12 +86,12 @@ export async function copyApiKeyToClipboard(apiKey: string, context: CopyContext
 export interface ApiKeySettingsCardProps {
   apiKeys: CpaApiKeySettingsItem[];
   loading?: boolean;
-  savingId?: string | null;
-  onSaveAlias: (id: string, keyAlias: string) => void | Promise<void>;
+  saving?: boolean;
+  onSaveAliases: (entries: Array<{ id: string; keyAlias: string }>) => void | Promise<void>;
   onNotice?: (kind: 'success' | 'info' | 'error', message: string) => void;
 }
 
-export function ApiKeySettingsCard({ apiKeys, loading = false, savingId = null, onSaveAlias, onNotice }: ApiKeySettingsCardProps) {
+export function ApiKeySettingsCard({ apiKeys, loading = false, saving = false, onSaveAliases, onNotice }: ApiKeySettingsCardProps) {
   const { t } = useTranslation();
   const [showFullApiKeys, setShowFullApiKeys] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -113,6 +113,22 @@ export function ApiKeySettingsCard({ apiKeys, loading = false, savingId = null, 
       clearTimeout(copyResetTimerRef.current);
     }
   }, []);
+
+  const dirtyEntries = useMemo(
+    () => apiKeys
+      .filter((item) => (draftAliases[item.id] ?? '') !== item.keyAlias)
+      .map((item) => ({ id: item.id, keyAlias: draftAliases[item.id] ?? '' })),
+    [apiKeys, draftAliases],
+  );
+
+  const handleSaveAll = async () => {
+    if (saving || dirtyEntries.length === 0) return;
+    try {
+      await onSaveAliases(dirtyEntries);
+    } catch {
+      // Parent is responsible for surfacing errors.
+    }
+  };
 
   const handleCopyApiKey = useCallback(async (item: CpaApiKeySettingsItem) => {
     try {
@@ -137,18 +153,32 @@ export function ApiKeySettingsCard({ apiKeys, loading = false, savingId = null, 
       title={t('usage_stats.api_key_settings_title')}
       subtitle={t('usage_stats.api_key_settings_subtitle')}
       titleMeta={
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className={`${styles.apiKeyVisibilityToggle} ${showFullApiKeys ? styles.apiKeyVisibilityToggleActive : ''}`.trim()}
-          onClick={() => setShowFullApiKeys((current) => !current)}
-          aria-label={toggleLabel}
-          aria-pressed={showFullApiKeys}
-          title={toggleLabel}
-        >
-          {showFullApiKeys ? <IconEye size={16} /> : <IconEyeOff size={16} />}
-        </Button>
+        <div className={styles.apiKeySettingsTitleMeta}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={`${styles.apiKeyVisibilityToggle} ${showFullApiKeys ? styles.apiKeyVisibilityToggleActive : ''}`.trim()}
+            onClick={() => setShowFullApiKeys((current) => !current)}
+            aria-label={toggleLabel}
+            aria-pressed={showFullApiKeys}
+            title={toggleLabel}
+          >
+            {showFullApiKeys ? <IconEye size={16} /> : <IconEyeOff size={16} />}
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            appearance="action"
+            className={styles.apiKeySettingsSaveButton}
+            onClick={() => void handleSaveAll()}
+            disabled={saving || dirtyEntries.length === 0}
+            loading={saving}
+          >
+            {saving ? t('usage_stats.api_key_settings_saving') : t('common.save')}
+          </Button>
+        </div>
       }
       className={`${styles.detailsFixedCard} ${styles.apiKeySettingsCard}`}
     >
@@ -161,7 +191,7 @@ export function ApiKeySettingsCard({ apiKeys, loading = false, savingId = null, 
           <div className={styles.apiKeySettingsList}>
             {apiKeys.map((item) => {
               const draftAlias = draftAliases[item.id] ?? '';
-              const disabled = savingId === item.id;
+              const disabled = saving;
               const apiKey = getApiKeySettingsVisibleKey(item, showFullApiKeys);
               const copyLabel = copiedId === item.id ? t('usage_stats.api_key_settings_copied') : t('usage_stats.api_key_settings_copy');
               return (
@@ -192,16 +222,6 @@ export function ApiKeySettingsCard({ apiKeys, loading = false, savingId = null, 
                         disabled={!item.apiKey}
                       >
                         {copyLabel}
-                      </Button>
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        appearance="action"
-                        className={styles.apiKeySettingsSaveButton}
-                        onClick={() => onSaveAlias(item.id, draftAlias)}
-                        disabled={disabled}
-                      >
-                        {disabled ? t('usage_stats.api_key_settings_saving') : t('common.save')}
                       </Button>
                     </div>
                   </div>

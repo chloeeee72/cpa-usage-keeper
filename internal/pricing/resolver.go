@@ -58,7 +58,6 @@ func (r Resolver) PeakHours() *PeakHoursConfig {
 
 func (r Resolver) Calculate(subject CostSubject) CostResult {
 	dimensions := subject.Dimensions
-	dimensions.PricingPeriod = r.resolvePricingPeriod(subject)
 
 	model, matchedModel, matchedBy, found := r.matchModel(dimensions)
 	if !found {
@@ -67,6 +66,8 @@ func (r Resolver) Calculate(subject CostSubject) CostResult {
 			RuleMultiplier: 1,
 		}
 	}
+
+	dimensions.PricingPeriod = r.resolvePricingPeriod(subject, model.peakHours)
 
 	breakdown := helper.CalculateUsageTokenCostBreakdown(subject.Tokens, model.pricing)
 	ruleMultiplier := 1.0
@@ -84,14 +85,21 @@ func (r Resolver) Calculate(subject CostSubject) CostResult {
 	}
 }
 
-func (r Resolver) resolvePricingPeriod(subject CostSubject) string {
+func (r Resolver) resolvePricingPeriod(subject CostSubject, modelPeakHours *PeakHoursConfig) string {
 	if period := strings.TrimSpace(subject.Dimensions.PricingPeriod); period != "" {
 		return period
 	}
-	if subject.Timestamp.IsZero() || r.snapshot == nil || r.snapshot.peakHours == nil {
+	if subject.Timestamp.IsZero() {
 		return string(PricingPeriodPeak)
 	}
-	if r.snapshot.peakHours.IsPeak(subject.Timestamp) {
+	peakHours := modelPeakHours
+	if peakHours == nil && r.snapshot != nil {
+		peakHours = r.snapshot.peakHours
+	}
+	if peakHours == nil {
+		return string(PricingPeriodPeak)
+	}
+	if peakHours.IsPeak(subject.Timestamp) {
 		return string(PricingPeriodPeak)
 	}
 	return string(PricingPeriodOffPeak)

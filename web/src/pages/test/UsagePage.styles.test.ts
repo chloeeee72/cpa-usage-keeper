@@ -124,14 +124,9 @@ describe('UsagePage toolbar styles', () => {
     expect(analysisChartSurface).toContain('border-radius: $radius-lg;')
   })
 
-  it('keeps only the ranking source switch beside Refresh in the shared top toolbar', () => {
-    expect(usagePageSource).not.toContain("import { RankingToolbar }")
-    expect(usagePageSource).not.toContain('<RankingToolbar')
-    expect(usagePageStyles).not.toContain('.rankingToolbarSlot')
-    expect(usagePageSource).toContain("import { RankingScopeSwitch }")
-    expect(usagePageSource).toContain('<RankingScopeSwitch')
-    expect(usagePageSource).toContain('showRankingScopeControl ? styles.rankingScopeTransitionOpen')
-    expect(usagePageSource).not.toContain('buildLocalRankingPreviewLeaderboard')
+  it('keeps only the shared main action beside Check Updates', () => {
+    expect(usagePageSource).not.toContain('RankingScopeSwitch')
+    expect(usagePageSource).not.toContain('rankingScopeTransition')
     expect(usagePageSource).not.toContain('RANKING_PREVIEW_ENABLED')
     expect(usagePageSource).toContain("import { MainActionButton } from '@/components/ui/MainActionButton'")
     expect(usagePageSource).toContain('<MainActionButton')
@@ -139,16 +134,15 @@ describe('UsagePage toolbar styles', () => {
     expect(keyOverviewPageSource).toContain('<MainActionButton')
   })
 
-  it('patches the local ranking cache by Key ID after a settings alias save', () => {
-    const start = usagePageSource.indexOf('const handleSaveApiKeyAlias = useCallback')
-    const end = usagePageSource.indexOf('\n  const handleRevokeAuthSession', start)
+  it('updates API Key aliases without ranking cache side effects', () => {
+    const start = usagePageSource.indexOf('const handleSaveApiKeyAliases = useCallback')
+    const end = usagePageSource.indexOf('\n  const loadAnalysis = useCallback', start)
     expect(start).toBeGreaterThanOrEqual(0)
     expect(end).toBeGreaterThan(start)
 
     const handler = usagePageSource.slice(start, end)
-    expect(handler).toContain('patchLocalRankingProfileCache(updated.id, {')
-    expect(handler).toContain('key_alias: updated.keyAlias')
-    expect(handler).toContain('display_name: updated.label')
+    expect(handler).toContain('setApiKeySettings(')
+    expect(handler).not.toContain('patchLocalRankingProfileCache')
   })
 
   it('removes obsolete Last Updated presentation and API plumbing', () => {
@@ -664,35 +658,10 @@ describe('UsagePage toolbar styles', () => {
     expect(i18nSource).not.toContain('overview_realtime_latency_p95')
   })
 
-  it('crossfades normal filters and ranking scope in one stable slot while Refresh stays fixed', () => {
-    expect(usagePageSource).toContain("${!isEmbeddedInCPAMC ? styles.toolbarActionsRightAnimated : ''}")
-    expect(usagePageSource).toContain('{(!isEmbeddedInCPAMC || showRangeControls) && (')
-    expect(usagePageSource).not.toContain("activeTab !== 'ranking' &&")
-    expect(usagePageSource).toContain('showRangeControls ? styles.usageFilterTransitionOpen : \'\'')
-    expect(usagePageSource).toContain('inert={!showRangeControls}')
-    expect(usagePageSource).toContain('<div className={styles.usageFilterBar}>')
-    expect(usagePageSource).not.toContain("key={showRangeControls ? 'open' : 'closed'}")
+  it('keeps the refresh slot stable while filter controls animate', () => {
     expect(usagePageSource).toContain('className={styles.usageRefreshSlot}')
-    expect(usagePageSource).toContain('styles.toolbarContextSlotImmediate : styles.toolbarContextSlot')
-    expect(usagePageSource).toContain('styles.rankingScopeTransition')
-    expect(usagePageStyles).toMatch(/\.toolbarActionsRightAnimated\s*\{[\s\S]*?display:\s*grid;/)
-    expect(usagePageStyles).toMatch(/\.toolbarActionsRightAnimated\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) auto;/)
-    expect(usagePageStyles).toMatch(/\.toolbarContextSlot\s*\{[\s\S]*?display:\s*grid;/)
-    expect(usagePageStyles).toMatch(/\.usageFilterTransition,\s*\.rankingScopeTransition\s*\{[\s\S]*?grid-area:\s*1 \/ 1;/)
-    const contextTransition = styleRuleBlock(usagePageStyles, '.usageFilterTransition,\n.rankingScopeTransition')
-    expect(contextTransition).toContain('max-width: 0;')
-    expect(contextTransition).toContain('transform: translateX(8px);')
-    expect(contextTransition).toContain('max-width 340ms cubic-bezier(0.22, 1, 0.36, 1)')
-    expect(contextTransition).toContain('opacity 260ms ease')
-    expect(usagePageStyles).toMatch(/\.usageFilterTransitionOpen\s*\{[\s\S]*?max-width:\s*960px;/)
-    expect(usagePageStyles).toMatch(/\.usageFilterTransitionOpen\s*\{[\s\S]*?transform:\s*translateX\(0\);/)
-    const contextTransitionInner = styleRuleBlock(usagePageStyles, '.usageFilterTransitionInner,\n.rankingScopeTransitionInner')
-    expect(contextTransitionInner).toContain('overflow: hidden;')
-    expect(contextTransitionInner).toContain('width: max-content;')
+    expect(usagePageSource).not.toContain('styles.rankingScopeTransition')
     expect(usagePageStyles).toMatch(/\.usageRefreshSlot\s*\{[\s\S]*?flex:\s*0 0 auto;/)
-    expect(usagePageStyles).toMatch(/\.rankingScopeTransitionOpen\s*\{[\s\S]*?max-width:\s*260px;/)
-    expect(usagePageStyles).toMatch(/@include mobile\s*\{[\s\S]*?\.usageFilterTransition,\s*\.usageFilterTransitionInner,[\s\S]*?\.rankingScopeTransitionInner\s*\{[\s\S]*?width:\s*100%;/)
-    expect(usagePageStyles).toMatch(/@include mobile\s*\{[\s\S]*?\.usageFilterTransitionOpen\s*\{[\s\S]*?max-width:\s*100%;/)
   })
 
   it('collapses the mobile filter height with the historical transition timing', () => {
@@ -792,12 +761,12 @@ describe('UsagePage toolbar styles', () => {
     expect(typesSource).not.toContain('latency_diagnostics: AnalysisLatencyDiagnostics')
   })
 
-  it('keeps Analysis before Ranking and Request Events', () => {
+  it('keeps Analysis before Request Events', () => {
     expect(i18nSource).toContain("tab_analysis: 'Analysis'")
     expect(i18nSource).not.toContain("tab_analysis: 'API & Models'")
     expect(i18nSource).not.toContain("tab_analysis: 'API 与模型'")
     expect(i18nSource).not.toContain("tab_analysis: 'API 與模型'")
-    expect(usagePageSource).toContain("const USAGE_TAB_OPTIONS = ['overview', 'analysis', 'ranking', 'events', 'auth-files', 'ai-provider', 'settings'] as const")
+    expect(usagePageSource).toContain("const USAGE_TAB_OPTIONS = ['overview', 'analysis', 'events', 'auth-files', 'ai-provider', 'settings'] as const")
   })
 
   it('keeps Sign out as the rightmost shared main action after Check Updates', () => {
@@ -985,7 +954,7 @@ describe('UsagePage toolbar styles', () => {
     expect(requestEventsSource).toContain('useScrollBoundaryContainment(scrollerRef);')
     expect(apiKeySettingsSource).toContain('useScrollBoundaryContainment(apiKeySettingsBodyRef);')
     expect(sessionSettingsSource).toContain('useScrollBoundaryContainment(sessionSettingsBodyRef);')
-    expect(priceSettingsSource).toContain('useScrollBoundaryContainment(pricesGridRef, sortedModelPrices.length > 0);')
+    expect(priceSettingsSource).toContain('useScrollBoundaryContainment(pricesGridRef, filteredSavedPrices.length > 0);')
     expect(requestEventsSource).toContain('ref={requestEventsTableWrapperRef} className={styles.requestEventsTableWrapper}')
     expect(requestEventsSource).toContain('className={styles.requestEventsLogSectionPanelInner} ref={scrollerRef}')
     expect(apiKeySettingsSource).toContain('ref={apiKeySettingsBodyRef} className={styles.apiKeySettingsBody}')

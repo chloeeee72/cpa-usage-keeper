@@ -73,14 +73,14 @@ const (
 	migrationAddUsageEventClientMetadata = "20260729_add_usage_event_client_metadata"
 	// migrationCreateUsageEventArchive 创建永久冷表；运行期归档在 schema 完成后才会启动。
 	migrationCreateUsageEventArchive = "20260730_create_usage_event_archive"
-	// migrationLocalRankingStats 创建固定四周期的本地排行累计。
-	migrationLocalRankingStats = "20260731_local_ranking_stats"
-	// migrationAddCPAAPIKeyLocalRankingAvatar 保存可空的本地排行头像覆盖值。
-	migrationAddCPAAPIKeyLocalRankingAvatar = "20260803_add_cpa_api_key_local_ranking_avatar"
 	// migrationAddAuthSessionClientMetadata 保存会话客户端与最近活动信息，旧会话只回填活动时间。
 	migrationAddAuthSessionClientMetadata = "20260813_add_auth_session_client_metadata"
 	// migrationUsageOverviewPricingPeriod 为 hourly/daily rollup 增加 pricing_period 维度并重建。
 	migrationUsageOverviewPricingPeriod = "20260818_usage_overview_pricing_period"
+	// migrationModelPricePeakHoursConfig 为模型价格增加模型级高峰时段配置。
+	migrationModelPricePeakHoursConfig = "20260818_model_price_peak_hours_config"
+	// migrationDropRankingTables 彻底删除已废弃的 Ranking 存储。
+	migrationDropRankingTables = "20260818_drop_ranking_tables"
 )
 
 type schemaMigration struct {
@@ -195,11 +195,11 @@ func orderedMigrations() []databaseMigration {
 		{version: migrationUsageLatencyStats, run: usageLatencyStatsMigration, disableTransaction: true},
 		{version: migrationAddUsageEventClientMetadata, run: addUsageEventClientMetadataMigration},
 		{version: migrationCreateUsageEventArchive, run: createUsageEventArchiveMigration},
-		{version: migrationLocalRankingStats, run: localRankingStatsMigration},
-		{version: migrationAddCPAAPIKeyLocalRankingAvatar, run: addCPAAPIKeyLocalRankingAvatarMigration},
 		{version: migrationAddAuthSessionClientMetadata, run: addAuthSessionClientMetadataMigration},
 		// 重建自己管理 schema/setup 与批量小事务，外层不能再包长事务。
 		{version: migrationUsageOverviewPricingPeriod, run: usageOverviewPricingPeriodMigration, disableTransaction: true},
+		{version: migrationModelPricePeakHoursConfig, run: modelPricePeakHoursConfigMigration},
+		{version: migrationDropRankingTables, run: dropRankingTablesMigration},
 	}
 }
 

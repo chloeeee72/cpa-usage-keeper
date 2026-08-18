@@ -14,8 +14,8 @@ const renderCard = (props: Partial<React.ComponentProps<typeof ApiKeySettingsCar
   <ApiKeySettingsCard
     apiKeys={apiKeys}
     loading={false}
-    savingId={null}
-    onSaveAlias={() => undefined}
+    saving={false}
+    onSaveAliases={() => undefined}
     {...props}
   />,
 );

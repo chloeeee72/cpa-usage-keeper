@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ApiError, createUsageEventRequestLogDownloadURL, exportUsageEvents, fetchAnalysis, fetchAnalysisLatency, fetchAuthSessions, fetchCpaApiKeyOptions, fetchCpaApiKeySettings, fetchStatus, fetchUpdateCheck, fetchUsageEventModelFilterOptions, fetchUsageEventRequestLog, fetchUsageEventSourceFilterOptions, fetchUsageEvents, fetchVersion, isUsageRangeBoundsConflict, logout, revokeAuthSession, updateCpaApiKeyAlias, type UsageEventsExportFormat } from '@/lib/api';
-import type { AnalysisLatencyDiagnostics, AnalysisResponse, AuthManagedSessionItem, CpaApiKeyOption, CpaApiKeySettingsItem, OverviewRealtimeWindow, StatusResponse, UsageCustomRange, UsageEvent, UsageEventRequestLogResponse, UsageSourceFilterOption, UsageTimeRange, VersionResponse } from '@/lib/types';
+import { ApiError, createUsageEventRequestLogDownloadURL, exportUsageEvents, fetchAnalysis, fetchAnalysisLatency, fetchCpaApiKeyOptions, fetchCpaApiKeySettings, fetchStatus, fetchUpdateCheck, fetchUsageEventModelFilterOptions, fetchUsageEventRequestLog, fetchUsageEventSourceFilterOptions, fetchUsageEvents, fetchVersion, isUsageRangeBoundsConflict, logout, updateCpaApiKeyAlias, type UsageEventsExportFormat } from '@/lib/api';
+import type { AnalysisLatencyDiagnostics, AnalysisResponse, CpaApiKeyOption, CpaApiKeySettingsItem, OverviewRealtimeWindow, StatusResponse, UsageCustomRange, UsageEvent, UsageEventRequestLogResponse, UsageSourceFilterOption, UsageTimeRange, VersionResponse } from '@/lib/types';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { Select } from '@/components/ui/Select';
@@ -18,7 +18,6 @@ import {
   OverviewRealtimePanel,
   AnalysisPanel,
   ApiKeySettingsCard,
-  SessionSettingsCard,
   PriceSettingsCard,
   AuthFileCredentialsSection,
   AiProviderCredentialsSection,
@@ -44,13 +43,6 @@ import { getDailyAverageCardUsage, isDailyAverageRange } from '@/utils/usage/ove
 import type { Theme } from '@/types';
 import { BrandLink } from '@/components/BrandLink';
 import { isCPAMCEmbed } from '@/embed/cpamcEmbed';
-import { RankingPage } from '@/features/ranking/RankingPage';
-import { RankingScopeSwitch } from '@/features/ranking/components/RankingScopeSwitch';
-import { useRankingData } from '@/features/ranking/hooks/useRankingData';
-import { useLocalRankingData } from '@/features/ranking/hooks/useLocalRankingData';
-import { resolveLocalRankingPreviewAPI, resolveRankingPreviewAPI } from '@/features/ranking/previewMock';
-import { loadRankingScope, persistRankingScope } from '@/features/ranking/scope';
-import type { LocalRankingProfileRequest, RankingScope } from '@/features/ranking/types';
 import styles from './UsagePage.module.scss';
 
 const TIME_RANGE_STORAGE_KEY = 'cli-proxy-usage-time-range-v1';
@@ -64,15 +56,12 @@ const THEME_OPTIONS: ReadonlyArray<{ value: Theme; labelKey: string }> = [
   { value: 'dark', labelKey: 'usage_stats.theme_dark' },
   { value: 'auto', labelKey: 'usage_stats.theme_auto' }
 ];
-const USAGE_TAB_OPTIONS = ['overview', 'analysis', 'ranking', 'events', 'auth-files', 'ai-provider', 'settings'] as const;
-const RANKING_PREVIEW_API = resolveRankingPreviewAPI(import.meta.env.VITE_RANKING_PREVIEW_MOCK);
-const LOCAL_RANKING_PREVIEW_API = resolveLocalRankingPreviewAPI(import.meta.env.VITE_RANKING_PREVIEW_MOCK);
+const USAGE_TAB_OPTIONS = ['overview', 'analysis', 'events', 'auth-files', 'ai-provider', 'settings'] as const;
 type UsageTab = (typeof USAGE_TAB_OPTIONS)[number];
 type Translate = (key: string) => string;
 const USAGE_TAB_LABEL_KEYS: Record<UsageTab, string> = {
   overview: 'usage_stats.tab_overview',
   analysis: 'usage_stats.tab_analysis',
-  ranking: 'usage_stats.tab_ranking',
   events: 'usage_stats.tab_events',
   'auth-files': 'usage_stats.tab_auth_files',
   'ai-provider': 'usage_stats.tab_ai_provider',
@@ -134,7 +123,7 @@ export const getCredentialSectionVisibility = (tab: UsageTab) => ({
   showAiProvider: tab === 'ai-provider',
 });
 
-export const shouldShowRangeControls = (tab: UsageTab) => tab !== 'ranking' && tab !== 'settings' && !getCredentialSectionVisibility(tab).enabled;
+export const shouldShowRangeControls = (tab: UsageTab) => tab !== 'settings' && !getCredentialSectionVisibility(tab).enabled;
 
 export const shouldShowApiKeyFilter = (tab: UsageTab) => shouldShowRangeControls(tab);
 
@@ -820,9 +809,8 @@ export const normalizeUsageTabValue = (value: unknown): UsageTab | null => {
 
 export const getUsageTabOptions = (
   translate: Translate,
-  { includeRanking = true }: { includeRanking?: boolean } = {},
 ): Array<{ value: UsageTab; label: string }> =>
-  USAGE_TAB_OPTIONS.filter((value) => includeRanking || value !== 'ranking').map((value) => ({
+  USAGE_TAB_OPTIONS.map((value) => ({
     value,
     label: translate(USAGE_TAB_LABEL_KEYS[value]),
   }));
@@ -886,13 +874,8 @@ export function UsagePage({ onAuthRequired }: { onAuthRequired?: () => void }) {
   const isDark = resolvedTheme === 'dark';
   const [activeTab, setActiveTab] = useState<UsageTab>(() => {
     const loadedTab = loadUsageTab();
-    return isEmbeddedInCPAMC && loadedTab === 'ranking' ? DEFAULT_USAGE_TAB : loadedTab;
+    return loadedTab;
   });
-  const [rankingScope, setRankingScope] = useState<RankingScope>(loadRankingScope);
-  const handleRankingScopeChange = useCallback((scope: RankingScope) => {
-    setRankingScope(scope);
-    persistRankingScope(scope);
-  }, []);
   const [loadedTimeRange] = useState(loadTimeRange);
   const pendingLegacyCustomRangeRef = useRef(loadedTimeRange.pendingLegacyCustomRange);
   const [timeRangeState, setTimeRangeState] = useState<StoredUsageRangeState>(loadedTimeRange.state);
@@ -1009,13 +992,8 @@ export function UsagePage({ onAuthRequired }: { onAuthRequired?: () => void }) {
   const [apiKeySettings, setApiKeySettings] = useState<CpaApiKeySettingsItem[]>([]);
   const [apiKeySettingsLoading, setApiKeySettingsLoading] = useState(false);
   const [apiKeySettingsError, setApiKeySettingsError] = useState('');
-  const [apiKeySettingsSavingId, setApiKeySettingsSavingId] = useState<string | null>(null);
+  const [apiKeySettingsSaving, setApiKeySettingsSaving] = useState(false);
   const apiKeySettingsRequestControllerRef = useRef<AbortController | null>(null);
-  const [authSessions, setAuthSessions] = useState<AuthManagedSessionItem[]>([]);
-  const [authSessionsLoading, setAuthSessionsLoading] = useState(false);
-  const [authSessionsError, setAuthSessionsError] = useState('');
-  const [authSessionRevokingId, setAuthSessionRevokingId] = useState<string | null>(null);
-  const authSessionsRequestControllerRef = useRef<AbortController | null>(null);
   const [statusError, setStatusError] = useState('');
   const [updateCheckLoading, setUpdateCheckLoading] = useState(false);
   const [topNotice, setTopNotice] = useState<{ kind: TopNoticeKind; message: string } | null>(null);
@@ -1064,45 +1042,6 @@ export function UsagePage({ onAuthRequired }: { onAuthRequired?: () => void }) {
       topNoticeTimerRef.current = null;
     }, getUpdateCheckToastDuration(kind));
   }, []);
-  const handleRankingBackgroundRefreshError = useCallback(() => {
-    showTopNotice('error', t('ranking.refresh_failed'));
-  }, [showTopNotice, t]);
-  const rankingData = useRankingData({
-    enabled: activeTab === 'ranking' && !isEmbeddedInCPAMC && rankingScope === 'community',
-    onAuthRequired,
-    onBackgroundRefreshError: handleRankingBackgroundRefreshError,
-    api: RANKING_PREVIEW_API,
-  });
-  const localRankingData = useLocalRankingData({
-    enabled: activeTab === 'ranking' && !isEmbeddedInCPAMC && rankingScope === 'local',
-    period: rankingData.period,
-    metric: rankingData.metric,
-    onAuthRequired,
-    onBackgroundRefreshError: handleRankingBackgroundRefreshError,
-    api: LOCAL_RANKING_PREVIEW_API,
-  });
-  const updateLocalRankingProfile = localRankingData.updateProfile;
-  const patchLocalRankingProfileCache = localRankingData.patchProfileCache;
-  const displayedRankingLeaderboard = rankingScope === 'community'
-    ? rankingData.leaderboard
-    : localRankingData.leaderboard;
-  const refreshCommunityRanking = rankingData.refreshRanking;
-  const refreshLocalRanking = localRankingData.refreshLeaderboard;
-  const refreshRanking = useCallback(
-    () => rankingScope === 'community' ? refreshCommunityRanking() : refreshLocalRanking(),
-    [rankingScope, refreshCommunityRanking, refreshLocalRanking],
-  );
-  const handleUpdateLocalRankingProfile = useCallback(async (participantID: string, profile: LocalRankingProfileRequest) => {
-    const updated = await updateLocalRankingProfile(participantID, profile);
-    // 排行资料与设置页共用同一 Key 记录，保存后同步刷新已加载的别名投影。
-    setApiKeySettings((current) => current.map((item) => item.id === updated.participant_id
-      ? { ...item, keyAlias: updated.key_alias, label: updated.display_name }
-      : item));
-    setApiKeyOptions((current) => current.map((item) => item.id === updated.participant_id
-      ? { ...item, label: updated.display_name }
-      : item));
-    return updated;
-  }, [updateLocalRankingProfile]);
   const credentialsData = useCredentialsTabData({
     enabledAuthFiles: credentialSectionVisibility.showAuthFiles && pageVisible,
     enabledAiProviders: credentialSectionVisibility.showAiProvider && pageVisible,
@@ -1119,8 +1058,8 @@ export function UsagePage({ onAuthRequired }: { onAuthRequired?: () => void }) {
   const analysisRequestControllerRef = useRef<AbortController | null>(null);
 
   const tabOptions = useMemo(
-    () => getUsageTabOptions(t, { includeRanking: !isEmbeddedInCPAMC }),
-    [isEmbeddedInCPAMC, t],
+    () => getUsageTabOptions(t),
+    [t],
   );
   const apiKeySelectOptions = useMemo(
     () => [
@@ -1212,85 +1151,27 @@ export function UsagePage({ onAuthRequired }: { onAuthRequired?: () => void }) {
     }
   }, [onAuthRequired]);
 
-  const loadAuthSessions = useCallback(async () => {
-    authSessionsRequestControllerRef.current?.abort();
-    const controller = new AbortController();
-    authSessionsRequestControllerRef.current = controller;
-
-    setAuthSessionsLoading(true);
-    setAuthSessionsError('');
-    try {
-      const response = await fetchAuthSessions(controller.signal);
-      if (authSessionsRequestControllerRef.current !== controller) {
-        return;
-      }
-      setAuthSessions(response.items ?? []);
-    } catch (error) {
-      if (controller.signal.aborted) {
-        return;
-      }
-      if (authSessionsRequestControllerRef.current === controller) {
-        setAuthSessions([]);
-      }
-      if (error instanceof ApiError && error.status === 401) {
-        onAuthRequired?.();
-        return;
-      }
-      setAuthSessionsError(error instanceof Error ? error.message : 'Failed to load auth sessions');
-    } finally {
-      if (authSessionsRequestControllerRef.current === controller) {
-        setAuthSessionsLoading(false);
-        authSessionsRequestControllerRef.current = null;
-      }
-    }
-  }, [onAuthRequired]);
-
-  const handleSaveApiKeyAlias = useCallback(async (id: string, keyAlias: string) => {
-    setApiKeySettingsSavingId(id);
+  const handleSaveApiKeyAliases = useCallback(async (entries: Array<{ id: string; keyAlias: string }>) => {
+    setApiKeySettingsSaving(true);
     setApiKeySettingsError('');
     try {
-      const updated = await updateCpaApiKeyAlias(id, keyAlias);
-      setApiKeySettings((current) => current.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
-      setApiKeyOptions((current) => current.map((item) => (item.id === updated.id ? updated : item)));
-      patchLocalRankingProfileCache(updated.id, {
-        key_alias: updated.keyAlias,
-        display_name: updated.label,
-      });
+      for (const entry of entries) {
+        const updated = await updateCpaApiKeyAlias(entry.id, entry.keyAlias);
+        setApiKeySettings((current) => current.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
+        setApiKeyOptions((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      }
       showTopNotice('success', t('usage_stats.api_key_settings_alias_save_success'));
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         onAuthRequired?.();
         return;
       }
-      setApiKeySettingsError(error instanceof Error ? error.message : 'Failed to update CPA API key alias');
+      setApiKeySettingsError(error instanceof Error ? error.message : 'Failed to update CPA API key aliases');
       showTopNotice('error', t('usage_stats.api_key_settings_alias_save_failed'));
     } finally {
-      setApiKeySettingsSavingId(null);
+      setApiKeySettingsSaving(false);
     }
-  }, [onAuthRequired, patchLocalRankingProfileCache, showTopNotice, t]);
-
-  const handleRevokeAuthSession = useCallback(async (session: AuthManagedSessionItem) => {
-    setAuthSessionRevokingId(session.id);
-    setAuthSessionsError('');
-    try {
-      await revokeAuthSession(session.id);
-      showTopNotice('success', t('usage_stats.session_settings_logout_success'));
-      if (session.current) {
-        onAuthRequired?.();
-        return;
-      }
-      await loadAuthSessions();
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        onAuthRequired?.();
-        return;
-      }
-      setAuthSessionsError(error instanceof Error ? error.message : 'Failed to revoke auth session');
-      showTopNotice('error', t('usage_stats.session_settings_logout_failed'));
-    } finally {
-      setAuthSessionRevokingId(null);
-    }
-  }, [loadAuthSessions, onAuthRequired, showTopNotice, t]);
+  }, [onAuthRequired, showTopNotice, t]);
 
   const loadAnalysis = useCallback(async () => {
     if (!usageRangeQuery.valid) return;
@@ -1739,10 +1620,6 @@ export function UsagePage({ onAuthRequired }: { onAuthRequired?: () => void }) {
       await Promise.all([loadEventFilterOptions(), loadEvents()]);
       return;
     }
-    if (activeTab === 'ranking') {
-      await refreshRanking();
-      return;
-    }
     if (credentialSectionVisibility.enabled) {
       await refreshCredentials();
       return;
@@ -1752,11 +1629,11 @@ export function UsagePage({ onAuthRequired }: { onAuthRequired?: () => void }) {
       return;
     }
     if (activeTab === 'settings') {
-      await Promise.all([loadAuthSessions(), loadApiKeySettings(), loadPricing()]);
+      await Promise.all([loadApiKeySettings(), loadPricing()]);
       return;
     }
     await Promise.all([loadUsage(), loadActivity(), loadRealtime()]);
-  }, [activeTab, credentialSectionVisibility.enabled, loadActivity, loadAnalysis, loadApiKeySettings, loadAuthSessions, loadEventFilterOptions, loadEvents, loadPricing, loadRealtime, loadUsage, refreshCredentials, refreshRanking]);
+  }, [activeTab, credentialSectionVisibility.enabled, loadActivity, loadAnalysis, loadApiKeySettings, loadEventFilterOptions, loadEvents, loadPricing, loadRealtime, loadUsage, refreshCredentials]);
 
   const refreshAutoRefreshTab = useCallback(async () => {
     if (activeTab === 'events') {
@@ -1914,20 +1791,14 @@ export function UsagePage({ onAuthRequired }: { onAuthRequired?: () => void }) {
       apiKeySettingsRequestControllerRef.current?.abort();
       apiKeySettingsRequestControllerRef.current = null;
       setApiKeySettingsLoading(false);
-      authSessionsRequestControllerRef.current?.abort();
-      authSessionsRequestControllerRef.current = null;
-      setAuthSessionsLoading(false);
       return;
     }
     void loadApiKeySettings();
-    void loadAuthSessions();
     return () => {
       apiKeySettingsRequestControllerRef.current?.abort();
       apiKeySettingsRequestControllerRef.current = null;
-      authSessionsRequestControllerRef.current?.abort();
-      authSessionsRequestControllerRef.current = null;
     };
-  }, [activeTab, loadApiKeySettings, loadAuthSessions]);
+  }, [activeTab, loadApiKeySettings]);
 
   useEffect(() => {
     const next = sanitizeRequestEventFilters(
@@ -1965,7 +1836,6 @@ export function UsagePage({ onAuthRequired }: { onAuthRequired?: () => void }) {
     : '';
   // 只有需要时间范围的 tab 才渲染 Range 控件，避免 Credentials/Pricing 产生空白占位。
   const showRangeControls = shouldShowRangeControls(activeTab);
-  const showRankingScopeControl = activeTab === 'ranking' && !isEmbeddedInCPAMC;
   const {
     requestsSparkline,
     tokensSparkline,
@@ -2034,6 +1904,23 @@ export function UsagePage({ onAuthRequired }: { onAuthRequired?: () => void }) {
                 </button>
               </div>
             )}
+            {(!isEmbeddedInCPAMC && cpaManagementURL) && (
+              <a
+                className={styles.backToCpaLink}
+                href={cpaManagementURL}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={t('usage_stats.back_to_cpa_aria')}
+              >
+                <span>{t('usage_stats.back_to_cpa')}</span>
+                <span className={styles.backToCpaIcon} aria-hidden="true">
+                  <svg viewBox="0 0 16 16" focusable="false">
+                    <path d="M6 4h6v6" />
+                    <path d="M12 4 5 11" />
+                  </svg>
+                </span>
+              </a>
+            )}
             <MainActionButton
               type="button"
               aria-label={t('common.logout')}
@@ -2053,28 +1940,6 @@ export function UsagePage({ onAuthRequired }: { onAuthRequired?: () => void }) {
                 <div className={styles.loadingOverlayContent}>
                   <LoadingSpinner size={28} className={styles.loadingOverlaySpinner} />
                   <span className={styles.loadingOverlayText}>{t('common.loading')}</span>
-                </div>
-              </div>
-            )}
-
-            {(!isEmbeddedInCPAMC && cpaManagementURL) && (
-              <div className={styles.toolbarMetaRow}>
-                <div className={styles.toolbarMetaRight}>
-                  <a
-                    className={styles.backToCpaLink}
-                    href={cpaManagementURL}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={t('usage_stats.back_to_cpa_aria')}
-                  >
-                    <span>{t('usage_stats.back_to_cpa')}</span>
-                    <span className={styles.backToCpaIcon} aria-hidden="true">
-                      <svg viewBox="0 0 16 16" focusable="false">
-                        <path d="M6 4h6v6" />
-                        <path d="M12 4 5 11" />
-                      </svg>
-                    </span>
-                  </a>
                 </div>
               </div>
             )}
@@ -2160,17 +2025,6 @@ export function UsagePage({ onAuthRequired }: { onAuthRequired?: () => void }) {
                     </div>
                   </div>
                   )}
-                  {!isEmbeddedInCPAMC && (
-                    <div
-                      className={`${styles.rankingScopeTransition} ${showRankingScopeControl ? styles.rankingScopeTransitionOpen : ''}`.trim()}
-                      aria-hidden={!showRankingScopeControl}
-                      inert={!showRankingScopeControl}
-                    >
-                      <div className={styles.rankingScopeTransitionInner}>
-                        <RankingScopeSwitch value={rankingScope} onChange={handleRankingScopeChange} />
-                      </div>
-                    </div>
-                  )}
                 </div>
                 <div className={styles.usageRefreshSlot}>
                   <div className={styles.usageFilterActions}>
@@ -2196,9 +2050,8 @@ export function UsagePage({ onAuthRequired }: { onAuthRequired?: () => void }) {
 
             {activeTab === 'overview' && error && <div className={styles.errorBox}>{error === 'AUTH_REQUIRED' ? t('auth.session_expired') : error}</div>}
             {activeTab === 'settings' && pricingError && <div className={styles.errorBox}>{pricingError === 'AUTH_REQUIRED' ? t('auth.session_expired') : pricingError}</div>}
-            {activeTab === 'settings' && authSessionsError && <div className={styles.errorBox}>{authSessionsError}</div>}
             {activeTab === 'settings' && apiKeySettingsError && <div className={styles.errorBox}>{apiKeySettingsError}</div>}
-            {!(activeTab === 'overview' ? error : activeTab === 'settings' ? (pricingError || authSessionsError || apiKeySettingsError) : '') && displayStatusError && <div className={styles.errorBox}>{displayStatusError}</div>}
+            {!(activeTab === 'overview' ? error : activeTab === 'settings' ? (pricingError || apiKeySettingsError) : '') && displayStatusError && <div className={styles.errorBox}>{displayStatusError}</div>}
 
             {activeTab === 'overview' && (
               <>
@@ -2253,38 +2106,6 @@ export function UsagePage({ onAuthRequired }: { onAuthRequired?: () => void }) {
                   isMobile={isMobile}
                 />
               </>
-            )}
-
-            {activeTab === 'ranking' && (
-              <RankingPage
-                key={rankingScope}
-                scope={rankingScope}
-                period={rankingData.period}
-                metric={rankingData.metric}
-                status={rankingScope === 'community' ? rankingData.status : null}
-                metadata={rankingScope === 'community' ? rankingData.metadata : null}
-                leaderboard={displayedRankingLeaderboard}
-                statusLoading={rankingScope === 'community' && rankingData.statusLoading}
-                metadataLoading={rankingScope === 'community' && rankingData.metadataLoading}
-                leaderboardLoading={rankingScope === 'community' ? rankingData.leaderboardLoading : localRankingData.leaderboardLoading}
-                statusError={rankingScope === 'community' ? rankingData.statusError : null}
-                metadataError={rankingScope === 'community' ? rankingData.metadataError : null}
-                leaderboardError={rankingScope === 'community' ? rankingData.leaderboardError : localRankingData.leaderboardError}
-                action={rankingScope === 'community' ? rankingData.action : null}
-                actionError={rankingScope === 'community' ? rankingData.actionError : null}
-                onClearActionError={rankingData.clearActionError}
-                onJoin={rankingData.join}
-                onSync={rankingData.sync}
-                onPause={rankingData.pause}
-                onResume={rankingData.resume}
-                onExit={rankingData.exit}
-                onRetryStatus={rankingData.refreshStatus}
-                onRetryMetadata={rankingData.refreshMetadata}
-                onRetryLeaderboard={rankingScope === 'community' ? rankingData.refreshLeaderboard : localRankingData.refreshLeaderboard}
-                onUpdateLocalProfile={handleUpdateLocalRankingProfile}
-                onPeriodChange={rankingData.setPeriod}
-                onMetricChange={rankingData.setMetric}
-              />
             )}
 
             {activeTab === 'events' && (
@@ -2386,17 +2207,11 @@ export function UsagePage({ onAuthRequired }: { onAuthRequired?: () => void }) {
 
             {activeTab === 'settings' && (
               <div className={styles.settingsSections}>
-                <SessionSettingsCard
-                  sessions={authSessions}
-                  loading={authSessionsLoading}
-                  revokingId={authSessionRevokingId}
-                  onLogout={handleRevokeAuthSession}
-                />
                 <ApiKeySettingsCard
                   apiKeys={apiKeySettings}
                   loading={apiKeySettingsLoading}
-                  savingId={apiKeySettingsSavingId}
-                  onSaveAlias={handleSaveApiKeyAlias}
+                  saving={apiKeySettingsSaving}
+                  onSaveAliases={handleSaveApiKeyAliases}
                   onNotice={showTopNotice}
                 />
                 <PriceSettingsCard

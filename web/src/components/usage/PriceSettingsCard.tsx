@@ -10,7 +10,7 @@ import { useScrollBoundaryContainment } from '@/hooks/useScrollBoundaryContainme
 import { ApiError } from '@/lib/api';
 import type { ModelPrice, PricingRule, PricingSaveResult, PricingStyle, PricingSyncMatch, PricingSyncPreviewResponse, ReplacePricingRuleInput } from '@/lib/types';
 import { PriceRulesModal } from './pricing/PriceRulesModal';
-import { PeakHoursModal } from './pricing/PeakHoursModal';
+import { PeakTimeEditor } from './pricing/PeakTimeEditor';
 import styles from '@/pages/UsagePage.module.scss';
 
 const formatDisplayName = (value: string): string => {
@@ -319,6 +319,11 @@ export function PriceSettingsCard({
   const [cacheReadPrice, setCacheReadPrice] = useState('');
   const [cacheWritePrice, setCacheWritePrice] = useState('');
   const [priceMultiplier, setPriceMultiplier] = useState('1');
+  const [peakPromptPrice, setPeakPromptPrice] = useState('');
+  const [peakCompletionPrice, setPeakCompletionPrice] = useState('');
+  const [peakCacheReadPrice, setPeakCacheReadPrice] = useState('');
+  const [peakCacheWritePrice, setPeakCacheWritePrice] = useState('');
+  const [peakTimeConfig, setPeakTimeConfig] = useState<string | null>(null);
   const [priceSaving, setPriceSaving] = useState(false);
 
   // 编辑弹窗独立保存草稿值，避免用户取消时污染已保存价格。
@@ -333,11 +338,12 @@ export function PriceSettingsCard({
   const [editPeakCompletion, setEditPeakCompletion] = useState('');
   const [editPeakCacheRead, setEditPeakCacheRead] = useState('');
   const [editPeakCacheWrite, setEditPeakCacheWrite] = useState('');
+  const [editPeakTimeConfig, setEditPeakTimeConfig] = useState<string | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   const [deleteModel, setDeleteModel] = useState<string | null>(null);
   const [deleteSaving, setDeleteSaving] = useState(false);
   const [rulesModel, setRulesModel] = useState<string | null>(null);
-  const [peakHoursOpen, setPeakHoursOpen] = useState(false);
+  const [savedPriceSearch, setSavedPriceSearch] = useState('');
 
   const [syncOpen, setSyncOpen] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
@@ -359,21 +365,35 @@ export function PriceSettingsCard({
 
   const handleSavePrice = async () => {
     if (!selectedModel || priceSaving) return;
+    const isPeakStyle = pricingStyle === 'peak';
     const price = pricingDraftToModelPrice({
-      style: pricingStyle,
-      prompt: promptPrice,
-      completion: completionPrice,
-      cacheRead: cacheReadPrice,
-      cacheWrite: cacheWritePrice,
+      style: isPeakStyle ? 'openai' : pricingStyle,
+      prompt: isPeakStyle ? peakPromptPrice : promptPrice,
+      completion: isPeakStyle ? peakCompletionPrice : completionPrice,
+      cacheRead: isPeakStyle ? peakCacheReadPrice : cacheReadPrice,
+      cacheWrite: isPeakStyle ? peakCacheWritePrice : cacheWritePrice,
       multiplier: priceMultiplier,
     });
     if (!price) {
       onNotice?.('error', t('usage_stats.model_price_save_failed'));
       return;
     }
+    price.peakHoursConfig = isPeakStyle ? peakTimeConfig : null;
     setPriceSaving(true);
     try {
       await Promise.resolve(onPriceSave(selectedModel, price));
+
+      if (isPeakStyle && onRulesSave) {
+        const peakInput = Number(peakPromptPrice) || 0;
+        const offPeakInput = Number(promptPrice) || 0;
+        const multiplier = peakInput > 0 ? offPeakInput / peakInput : 1;
+        const rules = multiplier === 1 ? [] : [
+          { key: 'pricing_period', value: 'peak', multiplier: 1 },
+          { key: 'pricing_period', value: 'off_peak', multiplier },
+        ];
+        await Promise.resolve(onRulesSave(selectedModel, rules));
+      }
+
       onNotice?.('success', t('usage_stats.model_price_save_success'));
       setSelectedModel('');
       setPricingStyle('openai');
@@ -382,6 +402,11 @@ export function PriceSettingsCard({
       setCacheReadPrice('');
       setCacheWritePrice('');
       setPriceMultiplier('1');
+      setPeakPromptPrice('');
+      setPeakCompletionPrice('');
+      setPeakCacheReadPrice('');
+      setPeakCacheWritePrice('');
+      setPeakTimeConfig(null);
     } catch (error) {
       notifyPricingPersistenceError(error, t('usage_stats.model_price_save_failed'), onNotice);
     } finally {
@@ -417,6 +442,7 @@ export function PriceSettingsCard({
     setEditPeakCompletion('');
     setEditPeakCacheRead('');
     setEditPeakCacheWrite('');
+    setEditPeakTimeConfig(price?.peakHoursConfig ?? null);
     if (onRulesLoad) {
       const rules = await onRulesLoad(model).catch(() => null);
       if (rules) {
@@ -453,6 +479,7 @@ export function PriceSettingsCard({
       onNotice?.('error', t('usage_stats.model_price_edit_failed'));
       return;
     }
+    price.peakHoursConfig = isPeakStyle ? editPeakTimeConfig : null;
     setEditSaving(true);
     try {
       await Promise.resolve(onPriceSave(editModel, price));
@@ -490,7 +517,7 @@ export function PriceSettingsCard({
     setSelectedModel(value);
     const price = modelPrices[value];
     if (price) {
-      setPricingStyle(price.style);
+      setPricingStyle(price.style === 'peak' ? 'openai' : price.style);
       setPromptPrice(price.prompt.toString());
       setCompletionPrice(price.completion.toString());
       setCacheReadPrice(price.cacheRead.toString());
@@ -504,6 +531,11 @@ export function PriceSettingsCard({
       setCacheWritePrice('');
       setPriceMultiplier('1');
     }
+    setPeakPromptPrice('');
+    setPeakCompletionPrice('');
+    setPeakCacheReadPrice('');
+    setPeakCacheWritePrice('');
+    setPeakTimeConfig(null);
   };
 
   const handleOpenSyncPreview = async () => {
@@ -591,7 +623,12 @@ export function PriceSettingsCard({
       .sort(([left], [right]) => compareModelNamesDescending(left, right)),
     [modelPrices]
   );
-  useScrollBoundaryContainment(pricesGridRef, sortedModelPrices.length > 0);
+  const filteredSavedPrices = useMemo(() => {
+    const keyword = savedPriceSearch.trim().toLowerCase();
+    if (!keyword) return sortedModelPrices;
+    return sortedModelPrices.filter(([model]) => model.toLowerCase().includes(keyword));
+  }, [sortedModelPrices, savedPriceSearch]);
+  useScrollBoundaryContainment(pricesGridRef, filteredSavedPrices.length > 0);
   const selectedSyncCount = useMemo(
     () => syncDrafts.filter((draft) => draft.selected).length,
     [syncDrafts]
@@ -609,11 +646,6 @@ export function PriceSettingsCard({
             <div className={styles.hint}>{t('common.loading')}</div>
           ) : (
             <>
-              <div className={styles.pricingToolbar}>
-                <Button variant="secondary" appearance="action" onClick={() => setPeakHoursOpen(true)}>
-                  Peak hours
-                </Button>
-              </div>
               {onSyncPreview && (
                 <div className={styles.pricingToolbar}>
                   <div className={styles.pricingToolbarMeta}>
@@ -648,7 +680,7 @@ export function PriceSettingsCard({
                     <Select
                       value={pricingStyle}
                       options={styleOptions}
-                      onChange={(value) => setPricingStyle(value === 'claude' ? 'claude' : 'openai')}
+                      onChange={(value) => setPricingStyle(value === 'claude' ? 'claude' : value === 'peak' ? 'peak' : 'openai')}
                       disabled={priceSaving}
                       className={styles.usagePillControl}
                     />
@@ -714,6 +746,62 @@ export function PriceSettingsCard({
                       className={styles.usagePillControl}
                     />
                   </div>
+                  {pricingStyle === 'peak' && (
+                    <>
+                      <div className={styles.formField}>
+                        <label>Peak input ($/1M)</label>
+                        <Input
+                          type="number"
+                          value={peakPromptPrice}
+                          onChange={(e) => setPeakPromptPrice(e.target.value)}
+                          placeholder="0.00"
+                          step="0.0001"
+                          disabled={priceSaving}
+                          className={styles.usagePillControl}
+                        />
+                      </div>
+                      <div className={styles.formField}>
+                        <label>Peak output ($/1M)</label>
+                        <Input
+                          type="number"
+                          value={peakCompletionPrice}
+                          onChange={(e) => setPeakCompletionPrice(e.target.value)}
+                          placeholder="0.00"
+                          step="0.0001"
+                          disabled={priceSaving}
+                          className={styles.usagePillControl}
+                        />
+                      </div>
+                      <div className={styles.formField}>
+                        <label>Peak cache read ($/1M)</label>
+                        <Input
+                          type="number"
+                          value={peakCacheReadPrice}
+                          onChange={(e) => setPeakCacheReadPrice(e.target.value)}
+                          placeholder="0.00"
+                          step="0.0001"
+                          disabled={priceSaving}
+                          className={styles.usagePillControl}
+                        />
+                      </div>
+                      <div className={styles.formField}>
+                        <label>Peak cache write ($/1M)</label>
+                        <Input
+                          type="number"
+                          value={peakCacheWritePrice}
+                          onChange={(e) => setPeakCacheWritePrice(e.target.value)}
+                          placeholder="0.00"
+                          step="0.0001"
+                          disabled={priceSaving}
+                          className={styles.usagePillControl}
+                        />
+                      </div>
+                      <div className={styles.formField}>
+                        <label>Peak time</label>
+                        <PeakTimeEditor value={peakTimeConfig} onChange={setPeakTimeConfig} disabled={priceSaving} />
+                      </div>
+                    </>
+                  )}
                   <Button variant="primary" appearance="action" className={styles.priceFormAction} onClick={() => void handleSavePrice()} disabled={!selectedModel || priceSaving} loading={priceSaving}>
                     {t('common.save')}
                   </Button>
@@ -722,9 +810,16 @@ export function PriceSettingsCard({
 
               <div className={styles.pricesList}>
                 <h4 className={styles.pricesTitle}>{t('usage_stats.saved_prices')}</h4>
-                {sortedModelPrices.length > 0 ? (
+                <Input
+                  type="search"
+                  value={savedPriceSearch}
+                  onChange={(e) => setSavedPriceSearch(e.target.value)}
+                  placeholder={t('usage_stats.model_price_search_placeholder')}
+                  className={styles.usagePillControl}
+                />
+                {filteredSavedPrices.length > 0 ? (
                   <div ref={pricesGridRef} className={styles.pricesGrid}>
-                    {sortedModelPrices.map(([model, price]) => (
+                    {filteredSavedPrices.map(([model, price]) => (
                       <div key={model} className={styles.priceItem}>
                         <div className={styles.priceInfo}>
                           <span className={styles.priceModel}>{formatDisplayName(model)}</span>
@@ -764,7 +859,9 @@ export function PriceSettingsCard({
                     ))}
                   </div>
                 ) : (
-                  <div className={styles.hint}>{t('usage_stats.model_price_empty')}</div>
+                  <div className={styles.hint}>
+                    {savedPriceSearch.trim() ? t('usage_stats.model_price_search_empty') : t('usage_stats.model_price_empty')}
+                  </div>
                 )}
               </div>
             </>
@@ -780,8 +877,6 @@ export function PriceSettingsCard({
         saveRules={onRulesSave ?? emptyPricingRules}
         onNotice={onNotice}
       />
-
-      <PeakHoursModal open={peakHoursOpen} onClose={() => setPeakHoursOpen(false)} onNotice={onNotice} />
 
       {/* 编辑弹窗不作为价格卡片内容参与布局，只负责编辑当前模型价格。 */}
       <Modal
@@ -922,6 +1017,10 @@ export function PriceSettingsCard({
                   disabled={editSaving}
                   className={styles.usagePillControl}
                 />
+              </div>
+              <div className={styles.formField}>
+                <label>Peak time</label>
+                <PeakTimeEditor value={editPeakTimeConfig} onChange={setEditPeakTimeConfig} disabled={editSaving} />
               </div>
             </div>
           )}

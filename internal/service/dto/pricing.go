@@ -9,6 +9,7 @@ type UpdatePricingInput struct {
 	CacheReadPricePer1M  float64
 	CacheWritePricePer1M float64
 	PriceMultiplier      *float64
+	PeakHoursConfig      *string
 }
 
 // PricingSyncPreview 是外部价格元数据同步前的预览结果。

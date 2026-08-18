@@ -140,6 +140,11 @@ func normalizePricingInput(input servicedto.UpdatePricingInput) (repodto.ModelPr
 			return repodto.ModelPriceSettingInput{}, fmt.Errorf("%w: price_multiplier must be non-negative", ErrInvalidPricingInput)
 		}
 	}
+	if input.PeakHoursConfig != nil {
+		if _, err := pricing.ParsePeakHoursConfig([]byte(*input.PeakHoursConfig)); err != nil {
+			return repodto.ModelPriceSettingInput{}, fmt.Errorf("%w: peak_hours_config: %v", ErrInvalidPricingInput, err)
+		}
+	}
 	return repodto.ModelPriceSettingInput{
 		Model:                modelName,
 		PricingStyle:         pricingStyle,
@@ -148,6 +153,7 @@ func normalizePricingInput(input servicedto.UpdatePricingInput) (repodto.ModelPr
 		CacheReadPricePer1M:  input.CacheReadPricePer1M,
 		CacheWritePricePer1M: input.CacheWritePricePer1M,
 		PriceMultiplier:      input.PriceMultiplier,
+		PeakHoursConfig:      input.PeakHoursConfig,
 	}, nil
 }
 

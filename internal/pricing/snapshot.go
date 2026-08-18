@@ -29,8 +29,9 @@ type compiledRule struct {
 }
 
 type compiledModel struct {
-	pricing entities.ModelPriceSetting
-	rules   []compiledRule
+	pricing   entities.ModelPriceSetting
+	rules     []compiledRule
+	peakHours *PeakHoursConfig
 }
 
 // Snapshot 是编译后只读的完整价格目录。内部集合在发布后不再修改。
@@ -81,6 +82,14 @@ func compileModelConfig(config ModelConfig) (compiledModel, ModelConfig, ActiveF
 	if err := validatePricingNumbers(pricing); err != nil {
 		return compiledModel{}, ModelConfig{}, 0, err
 	}
+	var modelPeakHours *PeakHoursConfig
+	if pricing.PeakHoursConfig != nil {
+		parsed, err := ParsePeakHoursConfig([]byte(*pricing.PeakHoursConfig))
+		if err != nil {
+			return compiledModel{}, ModelConfig{}, 0, fmt.Errorf("parse peak hours config: %w", err)
+		}
+		modelPeakHours = parsed
+	}
 
 	normalizedRules := make([]RuleConfig, 0, len(config.Rules))
 	compiledRules := make([]compiledRule, 0, len(config.Rules))
@@ -108,7 +117,7 @@ func compileModelConfig(config ModelConfig) (compiledModel, ModelConfig, ActiveF
 		return compiledModel{}, ModelConfig{}, 0, err
 	}
 	normalized := ModelConfig{Pricing: cloneModelPriceSetting(pricing), Rules: cloneRules(normalizedRules)}
-	return compiledModel{pricing: pricing, rules: compiledRules}, normalized, activeFields, nil
+	return compiledModel{pricing: pricing, rules: compiledRules, peakHours: modelPeakHours}, normalized, activeFields, nil
 }
 
 type ruleIdentity struct {
@@ -237,6 +246,10 @@ func cloneModelPriceSetting(input entities.ModelPriceSetting) entities.ModelPric
 		multiplier = *input.PriceMultiplier
 	}
 	cloned.PriceMultiplier = &multiplier
+	if input.PeakHoursConfig != nil {
+		value := *input.PeakHoursConfig
+		cloned.PeakHoursConfig = &value
+	}
 	return cloned
 }
 

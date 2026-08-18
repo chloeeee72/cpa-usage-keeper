@@ -22,6 +22,7 @@ var modelPriceSettingColumns = []string{
 	"cache_read_price_per1_m",
 	"cache_creation_price_per1_m",
 	"price_multiplier",
+	"peak_hours_config",
 	"created_at",
 	"updated_at",
 }
@@ -105,6 +106,7 @@ func UpsertModelPriceSetting(db *gorm.DB, input dto.ModelPriceSettingInput) (*en
 		return nil, err
 	}
 	setting.PriceMultiplier = &multiplier
+	setting.PeakHoursConfig = input.PeakHoursConfig
 
 	if err := db.Save(setting).Error; err != nil {
 		return nil, fmt.Errorf("save pricing setting: %w", err)

@@ -8,7 +8,6 @@ type CPAAPIKey struct {
 	APIKey               string `gorm:"uniqueIndex:uniq_cpa_api_keys_api_key"`
 	DisplayKey           string
 	KeyAlias             string
-	LocalRankingAvatarID *uint8
 	IsDeleted            bool       `gorm:"index:idx_cpa_api_keys_is_deleted"`
 	LastSyncedAt         *time.Time `gorm:"serializer:storageTime"`
 	CreatedAt            time.Time  `gorm:"serializer:storageTime"`

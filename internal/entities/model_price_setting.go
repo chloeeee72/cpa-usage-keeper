@@ -17,6 +17,7 @@ type ModelPriceSetting struct {
 	CacheReadPricePer1M  float64
 	CacheWritePricePer1M float64   `gorm:"column:cache_creation_price_per1_m;not null;default:0"`
 	PriceMultiplier      *float64  `gorm:"not null;default:1"`
+	PeakHoursConfig      *string   `gorm:"column:peak_hours_config"`
 	CreatedAt            time.Time `gorm:"serializer:storageTime"`
 	UpdatedAt            time.Time `gorm:"serializer:storageTime"`
 }

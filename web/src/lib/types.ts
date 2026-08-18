@@ -694,6 +694,7 @@ export interface ModelPrice {
 	cacheRead: number
 	cacheWrite: number
 	multiplier: number
+	peakHoursConfig?: string | null
 }
 
 export interface PricingSaveFailure {
@@ -715,6 +716,7 @@ export interface PricingEntry {
 	cache_read_price_per_1m: number
 	cache_write_price_per_1m: number
 	price_multiplier: number
+	peak_hours_config?: string | null
 }
 
 export interface UsedModelsResponse {

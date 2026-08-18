@@ -33,6 +33,7 @@ export const pricingToModelPrice = (entry: PricingEntry): ModelPrice => ({
   cacheRead: entry.cache_read_price_per_1m,
   cacheWrite: entry.cache_write_price_per_1m,
   multiplier: Number.isFinite(entry.price_multiplier) && entry.price_multiplier >= 0 ? entry.price_multiplier : 1,
+  peakHoursConfig: entry.peak_hours_config ?? null,
 });
 
 const modelPriceToPricingEntry = (pricing: ModelPrice): Omit<PricingEntry, 'model'> => ({
@@ -42,6 +43,7 @@ const modelPriceToPricingEntry = (pricing: ModelPrice): Omit<PricingEntry, 'mode
   cache_write_price_per_1m: pricing.cacheWrite,
   price_multiplier: pricing.multiplier,
   pricing_style: pricing.style,
+  peak_hours_config: pricing.peakHoursConfig ?? null,
 });
 
 interface PricingPersistence {

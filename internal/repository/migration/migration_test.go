@@ -76,10 +76,10 @@ func TestOrderedMigrationsPreservesExecutionOrder(t *testing.T) {
 		"20260726_usage_latency_stats",
 		"20260729_add_usage_event_client_metadata",
 		"20260730_create_usage_event_archive",
-		"20260731_local_ranking_stats",
-		"20260803_add_cpa_api_key_local_ranking_avatar",
 		"20260813_add_auth_session_client_metadata",
 		"20260818_usage_overview_pricing_period",
+		"20260818_model_price_peak_hours_config",
+		"20260818_drop_ranking_tables",
 	}
 	assertStringSlicesEqual(t, want, got)
 }

@@ -28,6 +28,7 @@ type pricingEntryResponse struct {
 	CacheReadPricePer1M  float64 `json:"cache_read_price_per_1m"`
 	CacheWritePricePer1M float64 `json:"cache_write_price_per_1m"`
 	PriceMultiplier      float64 `json:"price_multiplier"`
+	PeakHoursConfig      *string `json:"peak_hours_config,omitempty"`
 }
 
 type pricingListResponse struct {
@@ -46,6 +47,7 @@ type updatePricingRequest struct {
 	CacheReadPricePer1M           float64         `json:"cache_read_price_per_1m"`
 	CacheWritePricePer1M          float64         `json:"cache_write_price_per_1m"`
 	PriceMultiplier               *float64        `json:"price_multiplier"`
+	PeakHoursConfig               *string         `json:"peak_hours_config,omitempty"`
 	LegacyCachePricePer1M         json.RawMessage `json:"cache_price_per_1m"`
 	LegacyCacheCreationPricePer1M json.RawMessage `json:"cache_creation_price_per_1m"`
 }
@@ -88,6 +90,7 @@ func registerPricingRoutes(router gin.IRoutes, pricingProvider service.PricingPr
 				CacheReadPricePer1M:  setting.CacheReadPricePer1M,
 				CacheWritePricePer1M: setting.CacheWritePricePer1M,
 				PriceMultiplier:      modelPriceMultiplierValue(setting.PriceMultiplier),
+				PeakHoursConfig:      setting.PeakHoursConfig,
 			})
 		}
 		c.JSON(http.StatusOK, pricingListResponse{Pricing: response})
@@ -222,6 +225,7 @@ func updatePricingBatch(c *gin.Context, pricingProvider service.PricingProvider)
 			CacheReadPricePer1M:  entry.CacheReadPricePer1M,
 			CacheWritePricePer1M: entry.CacheWritePricePer1M,
 			PriceMultiplier:      entry.PriceMultiplier,
+			PeakHoursConfig:      entry.PeakHoursConfig,
 		}
 	}
 
@@ -274,6 +278,7 @@ func updatePricing(c *gin.Context, pricingProvider service.PricingProvider, path
 		CacheReadPricePer1M:  request.CacheReadPricePer1M,
 		CacheWritePricePer1M: request.CacheWritePricePer1M,
 		PriceMultiplier:      request.PriceMultiplier,
+		PeakHoursConfig:      request.PeakHoursConfig,
 	})
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidPricingInput) {
@@ -296,6 +301,7 @@ func pricingEntryResponseFromSetting(setting entities.ModelPriceSetting) pricing
 		CacheReadPricePer1M:  setting.CacheReadPricePer1M,
 		CacheWritePricePer1M: setting.CacheWritePricePer1M,
 		PriceMultiplier:      modelPriceMultiplierValue(setting.PriceMultiplier),
+		PeakHoursConfig:      setting.PeakHoursConfig,
 	}
 }
 
