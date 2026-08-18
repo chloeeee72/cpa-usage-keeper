@@ -668,7 +668,7 @@ describe('UsagePage toolbar styles', () => {
     const reducedMotionStart = usagePageStyles.indexOf('@media (prefers-reduced-motion: reduce)')
     const mobileStart = usagePageStyles.lastIndexOf('@include mobile {', reducedMotionStart)
     const mobileStyles = usagePageStyles.slice(mobileStart, reducedMotionStart)
-    const transitionBlock = mobileStyles.match(/\.toolbarActionsRightAnimated \.usageFilterTransition,\s*\.toolbarActionsRightAnimated \.rankingScopeTransition\s*\{([^}]*)\}/)?.[1] ?? ''
+    const transitionBlock = mobileStyles.match(/\.toolbarActionsRightAnimated \.usageFilterTransition\s*\{([^}]*)\}/)?.[1] ?? ''
     const openBlock = mobileStyles.match(/\.toolbarActionsRightAnimated \.usageFilterTransitionOpen\s*\{([^}]*)\}/)?.[1] ?? ''
 
     expect(transitionBlock).toContain('max-height: 0;')
