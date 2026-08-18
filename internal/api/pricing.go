@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"cpa-usage-keeper/internal/entities"
+	"cpa-usage-keeper/internal/pricing"
 	"cpa-usage-keeper/internal/service"
 	servicedto "cpa-usage-keeper/internal/service/dto"
 	"github.com/gin-gonic/gin"
@@ -114,6 +115,37 @@ func registerPricingRoutes(router gin.IRoutes, pricingProvider service.PricingPr
 			preview.UnmatchedModels = []string{}
 		}
 		c.JSON(http.StatusOK, preview)
+	})
+
+	router.GET("/pricing/peak-hours", func(c *gin.Context) {
+		if pricingProvider == nil {
+			c.JSON(http.StatusNotImplemented, gin.H{"error": "pricing provider is not configured"})
+			return
+		}
+		config, err := pricingProvider.GetPeakHours(c.Request.Context())
+		if err != nil {
+			writeInternalError(c, "get peak hours failed", err)
+			return
+		}
+		c.JSON(http.StatusOK, config)
+	})
+
+	router.PUT("/pricing/peak-hours", func(c *gin.Context) {
+		if pricingProvider == nil {
+			c.JSON(http.StatusNotImplemented, gin.H{"error": "pricing provider is not configured"})
+			return
+		}
+		var config pricing.PeakHoursConfig
+		if err := c.ShouldBindJSON(&config); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		updated, err := pricingProvider.UpdatePeakHours(c.Request.Context(), &config)
+		if err != nil {
+			writeInternalError(c, "update peak hours failed", err)
+			return
+		}
+		c.JSON(http.StatusOK, updated)
 	})
 
 	registerPricingRuleRoutes(router, pricingProvider)

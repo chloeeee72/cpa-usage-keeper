@@ -15,6 +15,7 @@ type UsageOverviewHourlyStat struct {
 	ReasoningEffort     string    `gorm:"not null;default:'';uniqueIndex:uniq_usage_overview_hourly_stats_dimensions,priority:8"`
 	Endpoint            string    `gorm:"not null;default:'';uniqueIndex:uniq_usage_overview_hourly_stats_dimensions,priority:9"`
 	ExecutorType        string    `gorm:"not null;default:'';uniqueIndex:uniq_usage_overview_hourly_stats_dimensions,priority:10"`
+	PricingPeriod       string    `gorm:"not null;default:'peak'"`
 	RequestCount        int64     `gorm:"not null;default:0"`
 	SuccessCount        int64     `gorm:"not null;default:0"`
 	FailureCount        int64     `gorm:"not null;default:0"`

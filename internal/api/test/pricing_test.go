@@ -11,6 +11,7 @@ import (
 
 	. "cpa-usage-keeper/internal/api"
 	"cpa-usage-keeper/internal/entities"
+	"cpa-usage-keeper/internal/pricing"
 	"cpa-usage-keeper/internal/service"
 	servicedto "cpa-usage-keeper/internal/service/dto"
 )
@@ -69,6 +70,14 @@ func (s *pricingStub) ListPricingRules(context.Context, string) ([]servicedto.Pr
 func (s *pricingStub) ReplacePricingRules(_ context.Context, input servicedto.ReplacePricingRulesInput) ([]servicedto.PricingRule, error) {
 	s.lastRules = &input
 	return s.rules, s.err
+}
+
+func (s *pricingStub) GetPeakHours(context.Context) (*pricing.PeakHoursConfig, error) {
+	return pricing.DefaultPeakHoursConfig(), s.err
+}
+
+func (s *pricingStub) UpdatePeakHours(_ context.Context, config *pricing.PeakHoursConfig) (*pricing.PeakHoursConfig, error) {
+	return config, s.err
 }
 
 func TestPricingRoutesReturnEmptyResponsesWithoutProvider(t *testing.T) {

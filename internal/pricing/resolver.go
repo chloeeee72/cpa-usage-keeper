@@ -1,17 +1,27 @@
 package pricing
 
 import (
+	"strings"
+	"time"
+
 	"cpa-usage-keeper/internal/helper"
 )
 
 // CostSubject 是所有 usage 来源进入计价领域的唯一固定输入。
 type CostSubject struct {
+	Timestamp  time.Time
 	Dimensions UsageDimensions
 	Tokens     helper.UsageTokenCostInput
 }
 
 func NewCostSubject(dimensions UsageDimensions, tokens helper.UsageTokenCostInput) CostSubject {
+	return NewCostSubjectWithTimestamp(dimensions, tokens, time.Time{})
+}
+
+// NewCostSubjectWithTimestamp 额外携带请求时间，供 Resolver 推导高峰/闲时时段。
+func NewCostSubjectWithTimestamp(dimensions UsageDimensions, tokens helper.UsageTokenCostInput, timestamp time.Time) CostSubject {
 	return CostSubject{
+		Timestamp:  timestamp,
 		Dimensions: canonicalizeUsageDimensions(dimensions),
 		Tokens:     tokens,
 	}
@@ -38,8 +48,19 @@ func (r Resolver) ActiveFields() ActiveFields {
 	return r.snapshot.activeFields
 }
 
+// PeakHours 返回 Resolver 绑定的高峰时段配置，供聚合查询按同一规则切分。
+func (r Resolver) PeakHours() *PeakHoursConfig {
+	if r.snapshot == nil {
+		return nil
+	}
+	return r.snapshot.peakHours
+}
+
 func (r Resolver) Calculate(subject CostSubject) CostResult {
-	model, matchedModel, matchedBy, found := r.matchModel(subject.Dimensions)
+	dimensions := subject.Dimensions
+	dimensions.PricingPeriod = r.resolvePricingPeriod(subject)
+
+	model, matchedModel, matchedBy, found := r.matchModel(dimensions)
 	if !found {
 		return CostResult{
 			Available:      !helper.UsageTokenInputRequiresPricing(subject.Tokens),
@@ -50,7 +71,7 @@ func (r Resolver) Calculate(subject CostSubject) CostResult {
 	breakdown := helper.CalculateUsageTokenCostBreakdown(subject.Tokens, model.pricing)
 	ruleMultiplier := 1.0
 	if model.pricing.PriceMultiplier == nil || *model.pricing.PriceMultiplier != 0 {
-		ruleMultiplier = matchingRuleMultiplier(model.rules, subject.Dimensions)
+		ruleMultiplier = matchingRuleMultiplier(model.rules, dimensions)
 		breakdown = helper.ScaleUsageTokenCostBreakdown(breakdown, ruleMultiplier)
 	}
 	return CostResult{
@@ -61,6 +82,19 @@ func (r Resolver) Calculate(subject CostSubject) CostResult {
 		MatchedBy:      matchedBy,
 		RuleMultiplier: ruleMultiplier,
 	}
+}
+
+func (r Resolver) resolvePricingPeriod(subject CostSubject) string {
+	if period := strings.TrimSpace(subject.Dimensions.PricingPeriod); period != "" {
+		return period
+	}
+	if subject.Timestamp.IsZero() || r.snapshot == nil || r.snapshot.peakHours == nil {
+		return string(PricingPeriodPeak)
+	}
+	if r.snapshot.peakHours.IsPeak(subject.Timestamp) {
+		return string(PricingPeriodPeak)
+	}
+	return string(PricingPeriodOffPeak)
 }
 
 func (r Resolver) matchModel(dimensions UsageDimensions) (compiledModel, string, string, bool) {

@@ -15,6 +15,7 @@ var optionalUsagePricingDimensionColumns = [...]usagePricingDimensionColumn{
 	{field: pricing.RuleFieldReasoningEffort, column: "reasoning_effort"},
 	{field: pricing.RuleFieldEndpoint, column: "endpoint"},
 	{field: pricing.RuleFieldExecutorType, column: "executor_type"},
+	{field: pricing.RuleFieldPricingPeriod, column: "pricing_period"},
 }
 
 // UsagePricingDimensionColumns 只从编译枚举生成固定 SQL 列；model/model_alias 始终保留。

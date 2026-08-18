@@ -38,13 +38,20 @@ type Snapshot struct {
 	modelsByName map[string]compiledModel
 	modelConfigs []ModelConfig
 	activeFields ActiveFields
+	peakHours    *PeakHoursConfig
 }
 
 // CompileSnapshot 规范化并校验完整价格集合，只有整个候选集合安全时才返回快照。
 func CompileSnapshot(configs []ModelConfig) (*Snapshot, error) {
+	return CompileSnapshotWithPeakHours(configs, nil)
+}
+
+// CompileSnapshotWithPeakHours 额外携带高峰时段配置，供 Resolver 按请求时间计价。
+func CompileSnapshotWithPeakHours(configs []ModelConfig, peakHours *PeakHoursConfig) (*Snapshot, error) {
 	snapshot := &Snapshot{
 		modelsByName: make(map[string]compiledModel, len(configs)),
 		modelConfigs: make([]ModelConfig, 0, len(configs)),
+		peakHours:    peakHours,
 	}
 	for index := range configs {
 		compiled, normalized, activeFields, err := compileModelConfig(configs[index])
@@ -117,6 +124,11 @@ func compileRule(input RuleConfig) (RuleConfig, compiledRule, error) {
 	value := strings.TrimSpace(input.Value)
 	if value == "" {
 		return RuleConfig{}, compiledRule{}, fmt.Errorf("rule value is required")
+	}
+	if field == RuleFieldPricingPeriod {
+		if _, err := ParsePricingPeriod(value); err != nil {
+			return RuleConfig{}, compiledRule{}, err
+		}
 	}
 	if !isNonNegativeFinite(input.Multiplier) {
 		return RuleConfig{}, compiledRule{}, fmt.Errorf("rule multiplier must be a finite non-negative number")
@@ -275,4 +287,12 @@ func (s *Snapshot) ActiveFields() ActiveFields {
 		return 0
 	}
 	return s.activeFields
+}
+
+// PeakHours 返回快照内的高峰时段配置；未配置时为 nil。
+func (s *Snapshot) PeakHours() *PeakHoursConfig {
+	if s == nil {
+		return nil
+	}
+	return s.peakHours
 }

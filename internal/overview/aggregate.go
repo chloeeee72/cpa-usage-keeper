@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"cpa-usage-keeper/internal/entities"
+	"cpa-usage-keeper/internal/pricing"
 	"cpa-usage-keeper/internal/timeutil"
 )
 
@@ -20,10 +21,16 @@ type aggregateKey struct {
 	ReasoningEffort     string
 	Endpoint            string
 	ExecutorType        string
+	PricingPeriod       string
 }
 
 // BuildRows 使用最终唯一键把一批 usage events 同时聚合成 hourly 和 daily rows。
 func BuildRows(events []entities.UsageEvent) ([]entities.UsageOverviewHourlyStat, []entities.UsageOverviewDailyStat, int64) {
+	return BuildRowsWithPeakHours(events, nil)
+}
+
+// BuildRowsWithPeakHours 使用高峰时段配置把每条事件拆分为 peak/off_peak 聚合行。
+func BuildRowsWithPeakHours(events []entities.UsageEvent, peakHours *pricing.PeakHoursConfig) ([]entities.UsageOverviewHourlyStat, []entities.UsageOverviewDailyStat, int64) {
 	// 两个 map 都直接使用数据库最终唯一键，迁移与运行时不会产生不同分组。
 	hourly := make(map[aggregateKey]*entities.UsageOverviewHourlyStat)
 	daily := make(map[aggregateKey]*entities.UsageOverviewDailyStat)
@@ -44,6 +51,7 @@ func BuildRows(events []entities.UsageEvent) ([]entities.UsageOverviewHourlyStat
 			ReasoningEffort:     normalizeOptionalDimension(event.ReasoningEffort),
 			Endpoint:            normalizeOptionalDimension(event.Endpoint),
 			ExecutorType:        normalizeOptionalDimension(event.ExecutorType),
+			PricingPeriod:       pricingPeriodForEvent(event.Timestamp, peakHours),
 		}
 		// nullable model_alias 与 nullable endpoint 一样归一为空字符串。
 		if event.ModelAlias != nil {
@@ -63,7 +71,7 @@ func BuildRows(events []entities.UsageEvent) ([]entities.UsageOverviewHourlyStat
 				BucketStart: hourKey.BucketStart, APIGroupKey: hourKey.APIGroupKey, Model: hourKey.Model,
 				AuthIndex: hourKey.AuthIndex, ModelAlias: hourKey.ModelAlias, ServiceTier: hourKey.ServiceTier,
 				ResponseServiceTier: hourKey.ResponseServiceTier, ReasoningEffort: hourKey.ReasoningEffort,
-				Endpoint: hourKey.Endpoint, ExecutorType: hourKey.ExecutorType,
+				Endpoint: hourKey.Endpoint, ExecutorType: hourKey.ExecutorType, PricingPeriod: hourKey.PricingPeriod,
 			}
 		}
 		if daily[dayKey] == nil {
@@ -71,7 +79,7 @@ func BuildRows(events []entities.UsageEvent) ([]entities.UsageOverviewHourlyStat
 				BucketStart: dayKey.BucketStart, APIGroupKey: dayKey.APIGroupKey, Model: dayKey.Model,
 				AuthIndex: dayKey.AuthIndex, ModelAlias: dayKey.ModelAlias, ServiceTier: dayKey.ServiceTier,
 				ResponseServiceTier: dayKey.ResponseServiceTier, ReasoningEffort: dayKey.ReasoningEffort,
-				Endpoint: dayKey.Endpoint, ExecutorType: dayKey.ExecutorType,
+				Endpoint: dayKey.Endpoint, ExecutorType: dayKey.ExecutorType, PricingPeriod: dayKey.PricingPeriod,
 			}
 		}
 		addEventToHourlyRow(hourly[hourKey], event)
@@ -142,15 +150,15 @@ func addEventToDailyRow(row *entities.UsageOverviewDailyStat, event entities.Usa
 
 func hourlyRowLess(left, right entities.UsageOverviewHourlyStat) bool {
 	return dimensionsLess(
-		aggregateKey{left.BucketStart, left.APIGroupKey, left.Model, left.AuthIndex, left.ModelAlias, left.ServiceTier, left.ResponseServiceTier, left.ReasoningEffort, left.Endpoint, left.ExecutorType},
-		aggregateKey{right.BucketStart, right.APIGroupKey, right.Model, right.AuthIndex, right.ModelAlias, right.ServiceTier, right.ResponseServiceTier, right.ReasoningEffort, right.Endpoint, right.ExecutorType},
+		aggregateKey{left.BucketStart, left.APIGroupKey, left.Model, left.AuthIndex, left.ModelAlias, left.ServiceTier, left.ResponseServiceTier, left.ReasoningEffort, left.Endpoint, left.ExecutorType, left.PricingPeriod},
+		aggregateKey{right.BucketStart, right.APIGroupKey, right.Model, right.AuthIndex, right.ModelAlias, right.ServiceTier, right.ResponseServiceTier, right.ReasoningEffort, right.Endpoint, right.ExecutorType, right.PricingPeriod},
 	)
 }
 
 func dailyRowLess(left, right entities.UsageOverviewDailyStat) bool {
 	return dimensionsLess(
-		aggregateKey{left.BucketStart, left.APIGroupKey, left.Model, left.AuthIndex, left.ModelAlias, left.ServiceTier, left.ResponseServiceTier, left.ReasoningEffort, left.Endpoint, left.ExecutorType},
-		aggregateKey{right.BucketStart, right.APIGroupKey, right.Model, right.AuthIndex, right.ModelAlias, right.ServiceTier, right.ResponseServiceTier, right.ReasoningEffort, right.Endpoint, right.ExecutorType},
+		aggregateKey{left.BucketStart, left.APIGroupKey, left.Model, left.AuthIndex, left.ModelAlias, left.ServiceTier, left.ResponseServiceTier, left.ReasoningEffort, left.Endpoint, left.ExecutorType, left.PricingPeriod},
+		aggregateKey{right.BucketStart, right.APIGroupKey, right.Model, right.AuthIndex, right.ModelAlias, right.ServiceTier, right.ResponseServiceTier, right.ReasoningEffort, right.Endpoint, right.ExecutorType, right.PricingPeriod},
 	)
 }
 
@@ -158,12 +166,22 @@ func dimensionsLess(left, right aggregateKey) bool {
 	if !left.BucketStart.Equal(right.BucketStart) {
 		return left.BucketStart.Before(right.BucketStart)
 	}
-	leftValues := [...]string{left.APIGroupKey, left.Model, left.AuthIndex, left.ModelAlias, left.ServiceTier, left.ResponseServiceTier, left.ReasoningEffort, left.Endpoint, left.ExecutorType}
-	rightValues := [...]string{right.APIGroupKey, right.Model, right.AuthIndex, right.ModelAlias, right.ServiceTier, right.ResponseServiceTier, right.ReasoningEffort, right.Endpoint, right.ExecutorType}
+	leftValues := [...]string{left.APIGroupKey, left.Model, left.AuthIndex, left.ModelAlias, left.ServiceTier, left.ResponseServiceTier, left.ReasoningEffort, left.Endpoint, left.ExecutorType, left.PricingPeriod}
+	rightValues := [...]string{right.APIGroupKey, right.Model, right.AuthIndex, right.ModelAlias, right.ServiceTier, right.ResponseServiceTier, right.ReasoningEffort, right.Endpoint, right.ExecutorType, right.PricingPeriod}
 	for index := range leftValues {
 		if leftValues[index] != rightValues[index] {
 			return leftValues[index] < rightValues[index]
 		}
 	}
 	return false
+}
+
+func pricingPeriodForEvent(timestamp time.Time, peakHours *pricing.PeakHoursConfig) string {
+	if peakHours == nil || timestamp.IsZero() {
+		return string(pricing.PricingPeriodPeak)
+	}
+	if peakHours.IsPeak(timestamp) {
+		return string(pricing.PricingPeriodPeak)
+	}
+	return string(pricing.PricingPeriodOffPeak)
 }

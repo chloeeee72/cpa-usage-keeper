@@ -25,6 +25,7 @@ type analysisOverviewStatProjection struct {
 	ReasoningEffort     string
 	Endpoint            string
 	ExecutorType        string
+	PricingPeriod       string
 	RequestCount        int64
 	InputTokens         int64
 	OutputTokens        int64
@@ -105,6 +106,8 @@ func calculateAnalysisOverviewProjectionCost(costResolver pricing.Resolver, row 
 		row.ReasoningEffort,
 		row.Endpoint,
 		row.ExecutorType,
+		row.PricingPeriod,
+		time.Time{},
 		row.InputTokens,
 		row.OutputTokens,
 		row.CacheReadTokens,

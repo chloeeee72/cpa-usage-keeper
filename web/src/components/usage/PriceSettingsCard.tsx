@@ -10,6 +10,7 @@ import { useScrollBoundaryContainment } from '@/hooks/useScrollBoundaryContainme
 import { ApiError } from '@/lib/api';
 import type { ModelPrice, PricingRule, PricingSaveResult, PricingStyle, PricingSyncMatch, PricingSyncPreviewResponse, ReplacePricingRuleInput } from '@/lib/types';
 import { PriceRulesModal } from './pricing/PriceRulesModal';
+import { PeakHoursModal } from './pricing/PeakHoursModal';
 import styles from '@/pages/UsagePage.module.scss';
 
 const formatDisplayName = (value: string): string => {
@@ -264,6 +265,7 @@ const notifyPricingPersistenceError = (
 const pricingStyleOptions = (t: (key: string) => string): SelectOption[] => [
   { value: 'openai', label: t('usage_stats.model_price_style_openai') },
   { value: 'claude', label: t('usage_stats.model_price_style_claude') },
+  { value: 'peak', label: 'Peak' },
 ];
 
 export const buildPricingModelOptions = (
@@ -327,10 +329,15 @@ export function PriceSettingsCard({
   const [editCacheRead, setEditCacheRead] = useState('');
   const [editCacheWrite, setEditCacheWrite] = useState('');
   const [editMultiplier, setEditMultiplier] = useState('1');
+  const [editPeakPrompt, setEditPeakPrompt] = useState('');
+  const [editPeakCompletion, setEditPeakCompletion] = useState('');
+  const [editPeakCacheRead, setEditPeakCacheRead] = useState('');
+  const [editPeakCacheWrite, setEditPeakCacheWrite] = useState('');
   const [editSaving, setEditSaving] = useState(false);
   const [deleteModel, setDeleteModel] = useState<string | null>(null);
   const [deleteSaving, setDeleteSaving] = useState(false);
   const [rulesModel, setRulesModel] = useState<string | null>(null);
+  const [peakHoursOpen, setPeakHoursOpen] = useState(false);
 
   const [syncOpen, setSyncOpen] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
@@ -396,25 +403,50 @@ export function PriceSettingsCard({
     }
   };
 
-  const handleOpenEdit = (model: string) => {
+  const handleOpenEdit = async (model: string) => {
     const price = modelPrices[model];
+    const baseStyle = price?.style === 'peak' ? 'openai' : (price?.style ?? 'openai');
     setEditModel(model);
-    setEditStyle(price?.style ?? 'openai');
+    setEditStyle(baseStyle);
     setEditPrompt(price?.prompt?.toString() || '');
     setEditCompletion(price?.completion?.toString() || '');
     setEditCacheRead(price?.cacheRead?.toString() || '');
     setEditCacheWrite(price?.cacheWrite?.toString() || '');
     setEditMultiplier(priceToInputValue(price?.multiplier ?? 1));
+    setEditPeakPrompt('');
+    setEditPeakCompletion('');
+    setEditPeakCacheRead('');
+    setEditPeakCacheWrite('');
+    if (onRulesLoad) {
+      const rules = await onRulesLoad(model).catch(() => null);
+      if (rules) {
+        const offPeakRule = rules.find((rule) => rule.key === 'pricing_period' && rule.value === 'off_peak');
+        if (offPeakRule && price) {
+          const multiplier = offPeakRule.multiplier;
+          setEditStyle('peak');
+          setEditPeakPrompt(price.prompt?.toString() || '');
+          setEditPeakCompletion(price.completion?.toString() || '');
+          setEditPeakCacheRead(price.cacheRead?.toString() || '');
+          setEditPeakCacheWrite(price.cacheWrite?.toString() || '');
+          setEditPrompt(((price.prompt ?? 0) * multiplier).toString());
+          setEditCompletion(((price.completion ?? 0) * multiplier).toString());
+          setEditCacheRead(((price.cacheRead ?? 0) * multiplier).toString());
+          setEditCacheWrite(((price.cacheWrite ?? 0) * multiplier).toString());
+        }
+      }
+    }
   };
 
   const handleSaveEdit = async () => {
     if (!editModel || editSaving) return;
+    const isPeakStyle = editStyle === 'peak';
+    const baseStyle = isPeakStyle ? 'openai' : editStyle;
     const price = pricingDraftToModelPrice({
-      style: editStyle,
-      prompt: editPrompt,
-      completion: editCompletion,
-      cacheRead: editCacheRead,
-      cacheWrite: editCacheWrite,
+      style: baseStyle,
+      prompt: isPeakStyle ? editPeakPrompt : editPrompt,
+      completion: isPeakStyle ? editPeakCompletion : editCompletion,
+      cacheRead: isPeakStyle ? editPeakCacheRead : editCacheRead,
+      cacheWrite: isPeakStyle ? editPeakCacheWrite : editCacheWrite,
       multiplier: editMultiplier,
     });
     if (!price) {
@@ -424,6 +456,26 @@ export function PriceSettingsCard({
     setEditSaving(true);
     try {
       await Promise.resolve(onPriceSave(editModel, price));
+
+      if (onRulesSave) {
+        const existingRules = onRulesLoad ? await onRulesLoad(editModel).catch(() => null) : null;
+        const keptRules = (existingRules ?? []).filter((rule) => rule.key !== 'pricing_period');
+        let nextRules = keptRules;
+        if (isPeakStyle) {
+          const peakInput = Number(editPeakPrompt) || 0;
+          const offPeakInput = Number(editPrompt) || 0;
+          const multiplier = peakInput > 0 ? offPeakInput / peakInput : 1;
+          if (multiplier !== 1) {
+            nextRules = [
+              ...keptRules,
+              { key: 'pricing_period', value: 'peak', multiplier: 1 },
+              { key: 'pricing_period', value: 'off_peak', multiplier },
+            ];
+          }
+        }
+        await Promise.resolve(onRulesSave(editModel, nextRules));
+      }
+
       onNotice?.('success', t('usage_stats.model_price_edit_success'));
       setEditModel(null);
     } catch (error) {
@@ -557,6 +609,11 @@ export function PriceSettingsCard({
             <div className={styles.hint}>{t('common.loading')}</div>
           ) : (
             <>
+              <div className={styles.pricingToolbar}>
+                <Button variant="secondary" appearance="action" onClick={() => setPeakHoursOpen(true)}>
+                  Peak hours
+                </Button>
+              </div>
               {onSyncPreview && (
                 <div className={styles.pricingToolbar}>
                   <div className={styles.pricingToolbarMeta}>
@@ -696,7 +753,7 @@ export function PriceSettingsCard({
                           <Button variant="secondary" size="sm" appearance="action" onClick={() => setRulesModel(model)}>
                             {t('usage_stats.model_price_rules')}
                           </Button>
-                          <Button variant="secondary" size="sm" appearance="action" onClick={() => handleOpenEdit(model)}>
+                          <Button variant="secondary" size="sm" appearance="action" onClick={() => void handleOpenEdit(model)}>
                             {t('common.edit')}
                           </Button>
                           <Button variant="danger" size="sm" appearance="action" onClick={() => setDeleteModel(model)}>
@@ -724,6 +781,8 @@ export function PriceSettingsCard({
         onNotice={onNotice}
       />
 
+      <PeakHoursModal open={peakHoursOpen} onClose={() => setPeakHoursOpen(false)} onNotice={onNotice} />
+
       {/* 编辑弹窗不作为价格卡片内容参与布局，只负责编辑当前模型价格。 */}
       <Modal
         open={editModel !== null}
@@ -748,13 +807,13 @@ export function PriceSettingsCard({
             <Select
               value={editStyle}
               options={styleOptions}
-              onChange={(value) => setEditStyle(value === 'claude' ? 'claude' : 'openai')}
+              onChange={(value) => setEditStyle(value === 'claude' ? 'claude' : value === 'peak' ? 'peak' : 'openai')}
               disabled={editSaving}
               className={styles.usagePillControl}
             />
           </div>
           <div className={styles.formField}>
-            <label>{t('usage_stats.model_price_prompt')} ($/1M)</label>
+            <label>{editStyle === 'peak' ? 'Off-peak input' : t('usage_stats.model_price_prompt')} ($/1M)</label>
             <Input
               type="number"
               value={editPrompt}
@@ -778,7 +837,7 @@ export function PriceSettingsCard({
             />
           </div>
           <div className={styles.formField}>
-            <label>{t('usage_stats.model_price_cache_read')} ($/1M)</label>
+            <label>{editStyle === 'peak' ? 'Off-peak cache read' : t('usage_stats.model_price_cache_read')} ($/1M)</label>
             <Input
               type="number"
               value={editCacheRead}
@@ -790,7 +849,7 @@ export function PriceSettingsCard({
             />
           </div>
           <div className={styles.formField}>
-            <label>{t('usage_stats.model_price_cache_write')} ($/1M)</label>
+            <label>{editStyle === 'peak' ? 'Off-peak cache write' : t('usage_stats.model_price_cache_write')} ($/1M)</label>
             <Input
               type="number"
               value={editCacheWrite}
@@ -814,6 +873,58 @@ export function PriceSettingsCard({
               className={styles.usagePillControl}
             />
           </div>
+          {editStyle === 'peak' && (
+            <div className={styles.formField}>
+              <div className={styles.formField}>
+                <label>Peak input ($/1M)</label>
+                <Input
+                  type="number"
+                  value={editPeakPrompt}
+                  onChange={(e) => setEditPeakPrompt(e.target.value)}
+                  placeholder="0.00"
+                  step="0.0001"
+                  disabled={editSaving}
+                  className={styles.usagePillControl}
+                />
+              </div>
+              <div className={styles.formField}>
+                <label>Peak output ($/1M)</label>
+                <Input
+                  type="number"
+                  value={editPeakCompletion}
+                  onChange={(e) => setEditPeakCompletion(e.target.value)}
+                  placeholder="0.00"
+                  step="0.0001"
+                  disabled={editSaving}
+                  className={styles.usagePillControl}
+                />
+              </div>
+              <div className={styles.formField}>
+                <label>Peak cache read ($/1M)</label>
+                <Input
+                  type="number"
+                  value={editPeakCacheRead}
+                  onChange={(e) => setEditPeakCacheRead(e.target.value)}
+                  placeholder="0.00"
+                  step="0.0001"
+                  disabled={editSaving}
+                  className={styles.usagePillControl}
+                />
+              </div>
+              <div className={styles.formField}>
+                <label>Peak cache write ($/1M)</label>
+                <Input
+                  type="number"
+                  value={editPeakCacheWrite}
+                  onChange={(e) => setEditPeakCacheWrite(e.target.value)}
+                  placeholder="0.00"
+                  step="0.0001"
+                  disabled={editSaving}
+                  className={styles.usagePillControl}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </Modal>
 

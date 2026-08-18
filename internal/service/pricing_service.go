@@ -30,6 +30,8 @@ type PricingProvider interface {
 	DeletePricing(context.Context, string) error
 	ListPricingRules(context.Context, string) ([]servicedto.PricingRule, error)
 	ReplacePricingRules(context.Context, servicedto.ReplacePricingRulesInput) ([]servicedto.PricingRule, error)
+	GetPeakHours(context.Context) (*pricing.PeakHoursConfig, error)
+	UpdatePeakHours(context.Context, *pricing.PeakHoursConfig) (*pricing.PeakHoursConfig, error)
 }
 
 type ModelsFetcher interface {

@@ -24,6 +24,7 @@ type usageOverviewStatProjection struct {
 	ReasoningEffort         string
 	Endpoint                string
 	ExecutorType            string
+	PricingPeriod           string
 	RequestCount            int64
 	SuccessCount            int64
 	FailureCount            int64
@@ -111,6 +112,8 @@ func calculateUsageOverviewProjectionCost(costResolver pricing.Resolver, row usa
 		row.ReasoningEffort,
 		row.Endpoint,
 		row.ExecutorType,
+		row.PricingPeriod,
+		time.Time{},
 		row.CostUncachedInputTokens+row.CostCacheReadTokens+row.CostCacheCreationTokens,
 		row.CostOutputTokens,
 		row.CostCacheReadTokens,

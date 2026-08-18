@@ -869,6 +869,38 @@ export async function fetchPricingSyncPreview(signal?: AbortSignal): Promise<Pri
   return response.json()
 }
 
+export interface PeakTimeRange {
+  start: string
+  end: string
+}
+
+export interface PeakHoursConfig {
+  timezone: string
+  ranges: PeakTimeRange[]
+}
+
+export async function fetchPeakHours(signal?: AbortSignal): Promise<PeakHoursConfig> {
+  const response = await apiFetch(apiPath('/pricing/peak-hours'), { signal, cache: 'no-store' })
+  if (!response.ok) {
+    await parseApiError(response, `Failed to load peak hours: ${response.status}`)
+  }
+  return response.json()
+}
+
+export async function updatePeakHours(config: PeakHoursConfig): Promise<PeakHoursConfig> {
+  const response = await apiFetch(apiPath('/pricing/peak-hours'), {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(config),
+  })
+  if (!response.ok) {
+    await parseApiError(response, `Failed to update peak hours: ${response.status}`)
+  }
+  return response.json()
+}
+
 export async function updatePricing(model: string, pricing: Omit<PricingEntry, 'model'>): Promise<PricingEntry> {
   const response = await apiFetch(apiPath('/pricing'), {
     method: 'PUT',

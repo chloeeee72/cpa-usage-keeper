@@ -79,6 +79,8 @@ const (
 	migrationAddCPAAPIKeyLocalRankingAvatar = "20260803_add_cpa_api_key_local_ranking_avatar"
 	// migrationAddAuthSessionClientMetadata 保存会话客户端与最近活动信息，旧会话只回填活动时间。
 	migrationAddAuthSessionClientMetadata = "20260813_add_auth_session_client_metadata"
+	// migrationUsageOverviewPricingPeriod 为 hourly/daily rollup 增加 pricing_period 维度并重建。
+	migrationUsageOverviewPricingPeriod = "20260818_usage_overview_pricing_period"
 )
 
 type schemaMigration struct {
@@ -196,6 +198,8 @@ func orderedMigrations() []databaseMigration {
 		{version: migrationLocalRankingStats, run: localRankingStatsMigration},
 		{version: migrationAddCPAAPIKeyLocalRankingAvatar, run: addCPAAPIKeyLocalRankingAvatarMigration},
 		{version: migrationAddAuthSessionClientMetadata, run: addAuthSessionClientMetadataMigration},
+		// 重建自己管理 schema/setup 与批量小事务，外层不能再包长事务。
+		{version: migrationUsageOverviewPricingPeriod, run: usageOverviewPricingPeriodMigration, disableTransaction: true},
 	}
 }
 

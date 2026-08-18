@@ -147,7 +147,7 @@ func TestSumLongUsageWindowTokenStatsDoesNotDoubleCountWhenBoundaryClips(t *test
 		t.Fatalf("seed usage event: %v", err)
 	}
 
-	rows, err := sumLongUsageWindowTokenStats(db, "auth-1", start, end, 0)
+	rows, err := sumLongUsageWindowTokenStats(db, "auth-1", start, end, 0, nil)
 	if err != nil {
 		t.Fatalf("sumLongUsageWindowTokenStats returned error: %v", err)
 	}

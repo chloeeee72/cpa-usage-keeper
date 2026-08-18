@@ -203,6 +203,7 @@ func NewWithConfig(cfg config.Config) (*App, error) {
 	})
 	// 单 writer aggregation runner 只维护 rollups/Identity，并在 App.Run 时主动追平。
 	usageAggregationRunner := poller.NewUsageAggregationRunner(db)
+	usageAggregationRunner.SetPeakHoursConfig(pricingCatalog.Snapshot().PeakHours())
 	// syncService 仍然是 metadata 和 usage 处理共享的业务服务入口。
 	syncService := service.NewSyncServiceWithOptions(db, service.SyncServiceOptions{
 		BaseURL: cfg.CPABaseURL,

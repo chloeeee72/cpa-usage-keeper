@@ -11,6 +11,7 @@ import (
 	"cpa-usage-keeper/internal/entities"
 	"cpa-usage-keeper/internal/latency"
 	"cpa-usage-keeper/internal/overview"
+	"cpa-usage-keeper/internal/pricing"
 	"cpa-usage-keeper/internal/repository"
 
 	"github.com/sirupsen/logrus"
@@ -63,6 +64,7 @@ type UsageAggregationRunner struct {
 	db               *gorm.DB
 	now              func() time.Time
 	debounceInterval time.Duration
+	peakHours        *pricing.PeakHoursConfig
 
 	// mu 只保护轻量内存目标和 Identity 分页状态，锁内不执行数据库操作。
 	mu sync.Mutex
@@ -113,6 +115,14 @@ func NewUsageAggregationRunnerWithOptions(db *gorm.DB, options UsageAggregationR
 		identityTargetGeneration: 1, // 启动时必须覆盖一次进程启动前已经存在的 identities。
 		wake:                     make(chan struct{}, 1),
 	}
+}
+
+// SetPeakHoursConfig 设置聚合时用于拆分 peak/off_peak 的高峰时段配置。
+func (r *UsageAggregationRunner) SetPeakHoursConfig(config *pricing.PeakHoursConfig) {
+	if r == nil {
+		return
+	}
+	r.peakHours = config
 }
 
 // NotifyUsageEventsCommitted 在事务成功后只提高内存目标并非阻塞唤醒 runner。
@@ -454,7 +464,11 @@ func (r *UsageAggregationRunner) runSharedRollupsPage(ctx context.Context, write
 	}
 
 	// 三类纯计算复用同一份只读事件；各自错误只跳过自己，成功结果仍可用独立事务提交。
-	overviewHourly, overviewDaily, nextCursor := overview.BuildRows(events)
+	peakHours, err := repository.LoadPeakHoursConfig(ctx, r.db)
+	if err != nil {
+		return false, false, false, err
+	}
+	overviewHourly, overviewDaily, nextCursor := overview.BuildRowsWithPeakHours(events, peakHours)
 	activityRows, activityErr := activity.BuildRows(events, now)
 	latencyRows, latencyErr := latency.BuildRows(events, now)
 
@@ -513,7 +527,12 @@ func (r *UsageAggregationRunner) runFallbackRollupsPages(ctx context.Context, wr
 		} else if len(events) == 0 {
 			pageErrors = append(pageErrors, fmt.Errorf("overview fallback page is empty before target %d", targetEventID))
 		} else {
-			hourly, daily, nextCursor := overview.BuildRows(events)
+			peakHours, peakErr := repository.LoadPeakHoursConfig(ctx, r.db)
+			if peakErr != nil {
+				pageErrors = append(pageErrors, peakErr)
+				return processed, false, false, errors.Join(pageErrors...)
+			}
+			hourly, daily, nextCursor := overview.BuildRowsWithPeakHours(events, peakHours)
 			if deferred, deferErr := r.deferForInbox(ctx, writeDB); deferErr != nil || deferred {
 				if deferErr != nil {
 					pageErrors = append(pageErrors, deferErr)

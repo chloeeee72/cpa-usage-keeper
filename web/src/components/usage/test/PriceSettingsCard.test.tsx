@@ -339,7 +339,7 @@ describe('PriceSettingsCard', () => {
   });
 
   it('opens edit without showing a top notice before the user saves', () => {
-    const editHandlerStart = source.indexOf('const handleOpenEdit = (model: string) => {');
+    const editHandlerStart = source.indexOf('const handleOpenEdit = async (model: string) => {');
     const editHandlerEnd = source.indexOf('\n  const handleSaveEdit = async () => {', editHandlerStart);
     const editHandler = source.slice(editHandlerStart, editHandlerEnd);
 

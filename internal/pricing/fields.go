@@ -19,6 +19,7 @@ const (
 	RuleFieldReasoningEffort
 	RuleFieldEndpoint
 	RuleFieldExecutorType
+	RuleFieldPricingPeriod
 	ruleFieldCount
 )
 
@@ -32,6 +33,7 @@ var ruleFieldNames = [...]string{
 	RuleFieldReasoningEffort:     "reasoning_effort",
 	RuleFieldEndpoint:            "endpoint",
 	RuleFieldExecutorType:        "executor_type",
+	RuleFieldPricingPeriod:       "pricing_period",
 }
 
 // ParseRuleField 将用户输入编译为固定枚举，避免任意字符串进入查询构造。
@@ -90,6 +92,7 @@ type UsageDimensions struct {
 	ReasoningEffort     string
 	Endpoint            string
 	ExecutorType        string
+	PricingPeriod       string
 }
 
 func (d UsageDimensions) Value(field RuleField) string {
@@ -112,6 +115,8 @@ func (d UsageDimensions) Value(field RuleField) string {
 		return d.Endpoint
 	case RuleFieldExecutorType:
 		return d.ExecutorType
+	case RuleFieldPricingPeriod:
+		return d.PricingPeriod
 	default:
 		return ""
 	}
@@ -127,6 +132,7 @@ func canonicalizeUsageDimensions(dimensions UsageDimensions) UsageDimensions {
 	dimensions.ReasoningEffort = strings.TrimSpace(dimensions.ReasoningEffort)
 	dimensions.Endpoint = strings.TrimSpace(dimensions.Endpoint)
 	dimensions.ExecutorType = strings.TrimSpace(dimensions.ExecutorType)
+	dimensions.PricingPeriod = strings.TrimSpace(dimensions.PricingPeriod)
 	return dimensions
 }
 

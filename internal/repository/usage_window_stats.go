@@ -36,6 +36,7 @@ type usageWindowTokenStats struct {
 	ReasoningEffort     string `gorm:"column:reasoning_effort"`
 	Endpoint            string `gorm:"column:endpoint"`
 	ExecutorType        string `gorm:"column:executor_type"`
+	PricingPeriod       string `gorm:"column:pricing_period"`
 	TotalTokens         int64  `gorm:"column:total_tokens"`
 	InputTokens         int64  `gorm:"column:input_tokens"`
 	OutputTokens        int64  `gorm:"column:output_tokens"`
@@ -68,7 +69,7 @@ func (c *UsageWindowStatsCalculator) SumByAuthIndex(ctx context.Context, authInd
 	}
 	// 先绑定 Reader，再创建 clone=2 的独立 session；长窗口三段查询不会互相累积 Model/Where。
 	queryDB := c.db.Clauses(dbresolver.Read).Session(&gorm.Session{Context: ctx})
-	rows, err := loadUsageWindowTokenStats(queryDB, authIndex, start, end, c.costResolver.ActiveFields())
+	rows, err := loadUsageWindowTokenStats(queryDB, authIndex, start, end, c.costResolver.ActiveFields(), c.costResolver.PeakHours())
 	if err != nil {
 		return UsageWindowStats{}, err
 	}
@@ -84,7 +85,7 @@ func SumUsageWindowStatsByAuthIndex(ctx context.Context, db *gorm.DB, authIndex 
 	return calculator.SumByAuthIndex(ctx, authIndex, start, end)
 }
 
-func loadUsageWindowTokenStats(db *gorm.DB, authIndex string, start time.Time, end *time.Time, activeFields pricing.ActiveFields) ([]usageWindowTokenStats, error) {
+func loadUsageWindowTokenStats(db *gorm.DB, authIndex string, start time.Time, end *time.Time, activeFields pricing.ActiveFields, peakHours *pricing.PeakHoursConfig) ([]usageWindowTokenStats, error) {
 	// 空时间无法表达有效 quota 窗口，提前返回避免误构造超宽时间范围。
 	if start.IsZero() || (end != nil && end.IsZero()) {
 		// 返回空结果而不是错误，调用方会把它当作“该窗口暂无用量”。
@@ -93,7 +94,7 @@ func loadUsageWindowTokenStats(db *gorm.DB, authIndex string, start time.Time, e
 	// 没有结束时间时只能走 raw 查询，保持“从 start 到当前已有数据”的旧语义。
 	if end == nil {
 		// raw 查询本身会按 model group by，不再逐条读 usage_events。
-		return sumRawUsageWindowTokenStats(db, authIndex, start, nil, activeFields)
+		return sumRawUsageWindowTokenStats(db, authIndex, start, nil, activeFields, peakHours)
 	}
 	// 结束时间归一化为存储时区，避免和 SQLite 文本时间比较口径不一致。
 	windowEnd := timeutil.NormalizeStorageTime(*end)
@@ -107,13 +108,13 @@ func loadUsageWindowTokenStats(db *gorm.DB, authIndex string, start time.Time, e
 	// 5 小时及以内直接查 raw，避免小窗口为了 rollup 多打几次数据库。
 	if windowEnd.Sub(windowStart) <= quotaWindowRawOnlyThreshold {
 		// raw 查询会使用 auth_index + timestamp 范围索引，并在 SQL 内完成 model 聚合。
-		return sumRawUsageWindowTokenStats(db, authIndex, windowStart, &windowEnd, activeFields)
+		return sumRawUsageWindowTokenStats(db, authIndex, windowStart, &windowEnd, activeFields, peakHours)
 	}
 	// 长窗口拆成边界 raw 和中间完整小时 rollup，降低真实高频数据下的扫描行数。
-	return sumLongUsageWindowTokenStats(db, authIndex, windowStart, windowEnd, activeFields)
+	return sumLongUsageWindowTokenStats(db, authIndex, windowStart, windowEnd, activeFields, peakHours)
 }
 
-func sumLongUsageWindowTokenStats(db *gorm.DB, authIndex string, start time.Time, end time.Time, activeFields pricing.ActiveFields) ([]usageWindowTokenStats, error) {
+func sumLongUsageWindowTokenStats(db *gorm.DB, authIndex string, start time.Time, end time.Time, activeFields pricing.ActiveFields, peakHours *pricing.PeakHoursConfig) ([]usageWindowTokenStats, error) {
 	// 左边界结束点取 start 之后的第一个整点，只有非整点部分才需要 raw 补偿。
 	leftEnd := ceilUsageWindowHour(start)
 	// 如果窗口不到左边界整点就结束，左边界最多只能补到 end。
@@ -148,7 +149,7 @@ func sumLongUsageWindowTokenStats(db *gorm.DB, authIndex string, start time.Time
 	// 左边界存在时读取 usage_events 边界段。
 	if start.Before(leftEnd) {
 		// 查询左边界 raw 聚合，最多覆盖不足一小时的数据。
-		rows, err := sumRawUsageWindowTokenStats(db, authIndex, start, &leftEnd, activeFields)
+		rows, err := sumRawUsageWindowTokenStats(db, authIndex, start, &leftEnd, activeFields, peakHours)
 		// 左边界查询失败时直接返回，避免展示半截统计。
 		if err != nil {
 			// 包装左边界错误，便于测试和日志定位。
@@ -172,7 +173,7 @@ func sumLongUsageWindowTokenStats(db *gorm.DB, authIndex string, start time.Time
 	// 右边界存在时读取 usage_events 尾部段。
 	if rightStart.Before(end) {
 		// 查询右边界 raw 聚合，覆盖最后一个完整小时之后的数据。
-		rows, err := sumRawUsageWindowTokenStats(db, authIndex, rightStart, &end, activeFields)
+		rows, err := sumRawUsageWindowTokenStats(db, authIndex, rightStart, &end, activeFields, peakHours)
 		// 右边界查询失败时直接返回，避免展示半截统计。
 		if err != nil {
 			// 包装右边界错误，便于测试和日志定位。
@@ -185,7 +186,10 @@ func sumLongUsageWindowTokenStats(db *gorm.DB, authIndex string, start time.Time
 	return usageWindowTokenStatsValues(merged), nil
 }
 
-func sumRawUsageWindowTokenStats(db *gorm.DB, authIndex string, start time.Time, end *time.Time, activeFields pricing.ActiveFields) ([]usageWindowTokenStats, error) {
+func sumRawUsageWindowTokenStats(db *gorm.DB, authIndex string, start time.Time, end *time.Time, activeFields pricing.ActiveFields, peakHours *pricing.PeakHoursConfig) ([]usageWindowTokenStats, error) {
+	if activeFields.Has(pricing.RuleFieldPricingPeriod) {
+		return sumRawUsageWindowTokenStatsWithPeriod(db, authIndex, start, end, peakHours)
+	}
 	dimensions := UsagePricingDimensionColumns(activeFields)
 	groupDimensions := append([]string{"model_alias", "model"}, dimensions[2:]...)
 	selectDimensions := append([]string(nil), dimensions...)
@@ -220,6 +224,68 @@ func sumRawUsageWindowTokenStats(db *gorm.DB, authIndex string, start time.Time,
 	}
 	// 返回 model_alias/model 级 token 汇总。
 	return rows, nil
+}
+
+func sumRawUsageWindowTokenStatsWithPeriod(db *gorm.DB, authIndex string, start time.Time, end *time.Time, peakHours *pricing.PeakHoursConfig) ([]usageWindowTokenStats, error) {
+	query := db.Model(&entities.UsageEvent{}).
+		Select("id, timestamp, api_group_key, model, model_alias, auth_index, service_tier, response_service_tier, reasoning_effort, endpoint, executor_type, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, total_tokens").
+		Where("auth_index = ? AND timestamp >= ?", authIndex, timeutil.FormatStorageTime(start))
+	if end != nil {
+		query = query.Where("timestamp < ?", timeutil.FormatStorageTime(*end))
+	}
+	var events []entities.UsageEvent
+	if err := query.Find(&events).Error; err != nil {
+		return nil, fmt.Errorf("sum raw usage window stats with period: %w", err)
+	}
+
+	merged := make(map[usageWindowTokenStatsKey]usageWindowTokenStats)
+	for _, event := range events {
+		modelAlias := ""
+		if event.ModelAlias != nil {
+			modelAlias = *event.ModelAlias
+		}
+		period := string(pricing.PricingPeriodPeak)
+		if peakHours != nil && !event.Timestamp.IsZero() {
+			if peakHours.IsPeak(event.Timestamp) {
+				period = string(pricing.PricingPeriodPeak)
+			} else {
+				period = string(pricing.PricingPeriodOffPeak)
+			}
+		}
+		dimensions := newUsagePricingCostSubject(
+			event.APIGroupKey,
+			event.Model,
+			event.AuthIndex,
+			modelAlias,
+			event.ServiceTier,
+			event.ResponseServiceTier,
+			event.ReasoningEffort,
+			event.Endpoint,
+			event.ExecutorType,
+			period,
+			time.Time{},
+			0, 0, 0, 0,
+		).Dimensions
+		key := usageWindowTokenStatsKey{dimensions: dimensions}
+		current := merged[key]
+		current.APIGroupKey = dimensions.APIGroupKey
+		current.Model = dimensions.Model
+		current.AuthIndex = authIndex
+		current.ModelAlias = dimensions.ModelAlias
+		current.ServiceTier = dimensions.ServiceTier
+		current.ResponseServiceTier = dimensions.ResponseServiceTier
+		current.ReasoningEffort = dimensions.ReasoningEffort
+		current.Endpoint = dimensions.Endpoint
+		current.ExecutorType = dimensions.ExecutorType
+		current.PricingPeriod = dimensions.PricingPeriod
+		current.TotalTokens += event.TotalTokens
+		current.InputTokens += event.InputTokens
+		current.OutputTokens += event.OutputTokens
+		current.CacheReadTokens += event.CacheReadTokens
+		current.CacheCreationTokens += event.CacheCreationTokens
+		merged[key] = current
+	}
+	return usageWindowTokenStatsValues(merged), nil
 }
 
 func sumHourlyUsageWindowTokenStats(db *gorm.DB, authIndex string, start time.Time, end time.Time, activeFields pricing.ActiveFields) ([]usageWindowTokenStats, error) {
@@ -262,6 +328,8 @@ func mergeUsageWindowTokenStats(merged map[usageWindowTokenStatsKey]usageWindowT
 			row.ReasoningEffort,
 			row.Endpoint,
 			row.ExecutorType,
+			row.PricingPeriod,
+			time.Time{},
 			0, 0, 0, 0,
 		).Dimensions
 		key := usageWindowTokenStatsKey{dimensions: dimensions}
@@ -277,6 +345,7 @@ func mergeUsageWindowTokenStats(merged map[usageWindowTokenStatsKey]usageWindowT
 		current.ReasoningEffort = dimensions.ReasoningEffort
 		current.Endpoint = dimensions.Endpoint
 		current.ExecutorType = dimensions.ExecutorType
+		current.PricingPeriod = dimensions.PricingPeriod
 		// 累加 total_tokens，用于前端 token 展示。
 		current.TotalTokens += row.TotalTokens
 		// 累加 input_tokens，用于普通输入、缓存读取和缓存写入成本拆分。
@@ -322,6 +391,8 @@ func usageWindowStatsFromTokenStats(rows []usageWindowTokenStats, costResolver p
 			row.ReasoningEffort,
 			row.Endpoint,
 			row.ExecutorType,
+			row.PricingPeriod,
+			time.Time{},
 			row.InputTokens,
 			row.OutputTokens,
 			row.CacheReadTokens,

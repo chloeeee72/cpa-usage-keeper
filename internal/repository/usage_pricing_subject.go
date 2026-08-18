@@ -1,6 +1,9 @@
 package repository
 
 import (
+	"strings"
+	"time"
+
 	"cpa-usage-keeper/internal/entities"
 	"cpa-usage-keeper/internal/helper"
 	"cpa-usage-keeper/internal/pricing"
@@ -22,6 +25,8 @@ func UsageEventCostSubject(event entities.UsageEvent) pricing.CostSubject {
 		event.ReasoningEffort,
 		event.Endpoint,
 		event.ExecutorType,
+		"",
+		event.Timestamp,
 		event.InputTokens,
 		event.OutputTokens,
 		event.CacheReadTokens,
@@ -40,6 +45,8 @@ func UsageEventRecordCostSubject(record dto.UsageEventRecord) pricing.CostSubjec
 		record.ReasoningEffort,
 		record.Endpoint,
 		record.ExecutorType,
+		"",
+		record.Timestamp,
 		record.InputTokens,
 		record.OutputTokens,
 		record.CacheReadTokens,
@@ -58,6 +65,8 @@ func UsageOverviewHourlyCostSubject(row entities.UsageOverviewHourlyStat) pricin
 		row.ReasoningEffort,
 		row.Endpoint,
 		row.ExecutorType,
+		row.PricingPeriod,
+		time.Time{},
 		row.InputTokens,
 		row.OutputTokens,
 		row.CacheReadTokens,
@@ -76,6 +85,8 @@ func UsageOverviewDailyCostSubject(row entities.UsageOverviewDailyStat) pricing.
 		row.ReasoningEffort,
 		row.Endpoint,
 		row.ExecutorType,
+		row.PricingPeriod,
+		time.Time{},
 		row.InputTokens,
 		row.OutputTokens,
 		row.CacheReadTokens,
@@ -84,10 +95,11 @@ func UsageOverviewDailyCostSubject(row entities.UsageOverviewDailyStat) pricing.
 }
 
 func newUsagePricingCostSubject(
-	apiGroupKey, model, authIndex, modelAlias, serviceTier, responseServiceTier, reasoningEffort, endpoint, executorType string,
+	apiGroupKey, model, authIndex, modelAlias, serviceTier, responseServiceTier, reasoningEffort, endpoint, executorType, pricingPeriod string,
+	timestamp time.Time,
 	inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens int64,
 ) pricing.CostSubject {
-	return pricing.NewCostSubject(pricing.UsageDimensions{
+	return pricing.NewCostSubjectWithTimestamp(pricing.UsageDimensions{
 		APIGroupKey:         apiGroupKey,
 		Model:               model,
 		AuthIndex:           authIndex,
@@ -97,10 +109,11 @@ func newUsagePricingCostSubject(
 		ReasoningEffort:     reasoningEffort,
 		Endpoint:            endpoint,
 		ExecutorType:        executorType,
+		PricingPeriod:       strings.TrimSpace(pricingPeriod),
 	}, helper.UsageTokenCostInput{
 		InputTokens:         inputTokens,
 		OutputTokens:        outputTokens,
 		CacheReadTokens:     cacheReadTokens,
 		CacheCreationTokens: cacheCreationTokens,
-	})
+	}, timestamp)
 }
