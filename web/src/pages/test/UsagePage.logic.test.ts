@@ -625,13 +625,13 @@ describe('UsagePage request event preferences', () => {
     });
 
     expect(preferences).toEqual({
-      version: 8,
+      version: 9,
       filters: {
         model: 'claude-opus',
         source: 'authidx-source-b',
         result: 'failed',
       },
-      visibleColumnIds: ['model', 'timestamp', 'total_cost'],
+      visibleColumnIds: ['model', 'timestamp', 'total_cost', 'error'],
       columnOrder: REQUEST_EVENT_COLUMN_IDS,
     });
   });
@@ -713,7 +713,7 @@ describe('UsagePage request event preferences', () => {
 
     const stored = JSON.parse(storage.value(REQUEST_EVENTS_PREFERENCES_STORAGE_KEY) ?? '');
     expect(stored).toEqual({
-      version: 8,
+      version: 9,
       filters: {
         model: '__all__',
         source: '__all__',
@@ -766,13 +766,13 @@ describe('UsagePage request event preferences', () => {
 
     expect(storage.setItem).toHaveBeenCalledTimes(1);
     expect(JSON.parse(storage.value(REQUEST_EVENTS_PREFERENCES_STORAGE_KEY) ?? '')).toEqual({
-      version: 8,
+      version: 9,
       filters: {
         model: 'gpt-4.1',
         source: 'source-a',
         result: 'success',
       },
-      visibleColumnIds: ['timestamp', 'model'],
+      visibleColumnIds: ['timestamp', 'model', 'error'],
       columnOrder: REQUEST_EVENT_COLUMN_IDS,
     });
   });

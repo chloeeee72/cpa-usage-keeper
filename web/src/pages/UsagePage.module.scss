@@ -3149,6 +3149,14 @@
   font-variant-numeric: tabular-nums;
 }
 
+.requestEventsErrorCell {
+  max-width: 360px;
+  overflow: hidden;
+  color: var(--danger-color);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .requestEventsSpeedModeCell {
   cursor: default;
 

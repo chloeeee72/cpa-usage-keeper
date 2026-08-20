@@ -19,6 +19,8 @@ func TestDecodeRedisUsageMessageMapsPayloadToUsageEvent(t *testing.T) {
 		"auth_index":"auth-1",
 		"tokens":{"input_tokens":10,"output_tokens":20,"reasoning_tokens":3,"cached_tokens":4,"cache_read_tokens":5,"cache_creation_tokens":6,"total_tokens":0},
 		"failed":true,
+		"error_code":"402",
+		"error_message":"Payment Required: quota exceeded",
 		"provider":"claude",
 		"model":"claude-sonnet-4-6",
 		"alias":"claude-sonnet-alias",
@@ -53,6 +55,12 @@ func TestDecodeRedisUsageMessageMapsPayloadToUsageEvent(t *testing.T) {
 	}
 	if event.ServiceTier != "standard" {
 		t.Fatalf("expected service tier to decode, got %q", event.ServiceTier)
+	}
+	if event.ErrorCode == nil || *event.ErrorCode != "402" {
+		t.Fatalf("expected error code to decode, got %+v", event.ErrorCode)
+	}
+	if event.ErrorMessage == nil || *event.ErrorMessage != "Payment Required: quota exceeded" {
+		t.Fatalf("expected error message to decode, got %+v", event.ErrorMessage)
 	}
 	if event.InputTokens != 10 || event.OutputTokens != 20 || event.ReasoningTokens != 3 || event.CachedTokens != 4 || event.CacheReadTokens != 5 || event.CacheCreationTokens != 6 || event.TotalTokens != 0 {
 		t.Fatalf("unexpected tokens: %+v", event)
@@ -194,4 +202,81 @@ func TestDecodeRedisUsageMessageReportsOnlyMessageError(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "decode redis usage message") {
 		t.Fatalf("expected decode error, got %v", err)
 	}
+}
+
+func TestDecodeRedisUsageMessageNormalizesErrorFields(t *testing.T) {
+	fetchedAt := time.Date(2026, 4, 27, 8, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name            string
+		errorCode       string
+		errorMessage    string
+		expectedCode    *string
+		expectedMessage *string
+	}{
+		{
+			name:            "missing fields stay nil",
+			expectedCode:    nil,
+			expectedMessage: nil,
+		},
+		{
+			name:            "blank fields normalize to nil",
+			errorCode:       "   ",
+			errorMessage:    "\n\t",
+			expectedCode:    nil,
+			expectedMessage: nil,
+		},
+		{
+			name:            "values trim whitespace",
+			errorCode:       " 402 ",
+			errorMessage:    "  Payment Required  ",
+			expectedCode:    redisStringPtr("402"),
+			expectedMessage: redisStringPtr("Payment Required"),
+		},
+		{
+			name:            "oversized values truncate by rune limit",
+			errorCode:       strings.Repeat("c", redisErrorCodeMaxRunes+10),
+			errorMessage:    strings.Repeat("错", redisErrorMessageMaxRunes+10),
+			expectedCode:    redisStringPtr(strings.Repeat("c", redisErrorCodeMaxRunes)),
+			expectedMessage: redisStringPtr(strings.Repeat("错", redisErrorMessageMaxRunes)),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			payload := map[string]string{"request_id": "req-error-normalize"}
+			if tt.errorCode != "" {
+				payload["error_code"] = tt.errorCode
+			}
+			if tt.errorMessage != "" {
+				payload["error_message"] = tt.errorMessage
+			}
+			rawMessage, err := json.Marshal(payload)
+			if err != nil {
+				t.Fatalf("marshal redis payload: %v", err)
+			}
+			event, _, err := DecodeRedisUsageMessage(string(rawMessage), fetchedAt)
+			if err != nil {
+				t.Fatalf("DecodeRedisUsageMessage returned error: %v", err)
+			}
+			if tt.expectedCode == nil {
+				if event.ErrorCode != nil {
+					t.Fatalf("expected nil error code, got %+v", event.ErrorCode)
+				}
+			} else if event.ErrorCode == nil || *event.ErrorCode != *tt.expectedCode {
+				t.Fatalf("expected error code %q, got %+v", *tt.expectedCode, event.ErrorCode)
+			}
+			if tt.expectedMessage == nil {
+				if event.ErrorMessage != nil {
+					t.Fatalf("expected nil error message, got %+v", event.ErrorMessage)
+				}
+			} else if event.ErrorMessage == nil || *event.ErrorMessage != *tt.expectedMessage {
+				t.Fatalf("expected error message %q, got %+v", *tt.expectedMessage, event.ErrorMessage)
+			}
+		})
+	}
+}
+
+func redisStringPtr(value string) *string {
+	return &value
 }

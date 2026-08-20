@@ -113,8 +113,8 @@ export function useCredentialsTabData({ enabledAuthFiles, enabledAiProviders, on
     [credentialPages.authFileIdentities, quotaResponsesByAuthIndex, quotaStates],
   )
   const aiProviderRows = useMemo(
-    () => buildAiProviderCredentialRows(credentialPages.aiProviderIdentities),
-    [credentialPages.aiProviderIdentities],
+    () => buildAiProviderCredentialRows(credentialPages.aiProviderIdentities, credentialPages.aiProviderCosts),
+    [credentialPages.aiProviderCosts, credentialPages.aiProviderIdentities],
   )
   const refreshCredentialPages = credentialPages.refresh
   const refresh = useCallback(async () => {

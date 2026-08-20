@@ -48,13 +48,14 @@ type StatusRouteConfig struct {
 }
 
 type OptionalProviders struct {
-	UsageIdentity service.UsageIdentityProvider
-	Quota         QuotaProvider
-	CPAAPIKeys    service.CPAAPIKeyProvider
-	AuthFiles     service.AuthFilesManagementProvider
-	RequestLogs   service.RequestLogProvider
-	Status        StatusRouteConfig
-	Balance       service.BalanceProvider
+	UsageIdentity      service.UsageIdentityProvider
+	Quota              QuotaProvider
+	CPAAPIKeys         service.CPAAPIKeyProvider
+	AuthFiles          service.AuthFilesManagementProvider
+	RequestLogs        service.RequestLogProvider
+	Status             StatusRouteConfig
+	Balance            service.BalanceProvider
+	UsageIdentityCosts service.UsageIdentityCostProvider
 }
 
 func NewRouter(
@@ -97,6 +98,7 @@ func NewRouter(
 	var requestLogProvider service.RequestLogProvider
 	var statusConfig StatusRouteConfig
 	var balanceProvider service.BalanceProvider
+	var usageIdentityCostProvider service.UsageIdentityCostProvider
 	if len(optionalProviders) > 0 {
 		usageIdentityProvider = optionalProviders[0].UsageIdentity
 		quotaProvider = optionalProviders[0].Quota
@@ -105,6 +107,7 @@ func NewRouter(
 		requestLogProvider = optionalProviders[0].RequestLogs
 		statusConfig = optionalProviders[0].Status
 		balanceProvider = optionalProviders[0].Balance
+		usageIdentityCostProvider = optionalProviders[0].UsageIdentityCosts
 	}
 	authHandler.setCPAAPIKeyProvider(cpaAPIKeyProvider)
 	requestLogDownloadTokens := newRequestLogDownloadTokenStore()
@@ -124,6 +127,7 @@ func NewRouter(
 	registerUsageAnalysisRoute(adminProtected, usageProvider, cpaAPIKeyProvider)
 	registerUsageEventsRoute(adminProtected, usageProvider, usageIdentityProvider, cpaAPIKeyProvider, requestLogProvider, requestLogDownloadTokens, statusConfig.CPARequestLogAccessEnabled)
 	registerUsageIdentityRoutes(adminProtected, usageIdentityProvider)
+	registerUsageIdentityCostRoutes(adminProtected, usageIdentityCostProvider)
 	registerAuthFileManagementRoutes(adminProtected, authFilesProvider)
 	registerAuthSessionManagementRoutes(adminProtected, authHandler)
 	registerCPAAPIKeyRoutes(adminProtected, cpaAPIKeyProvider)

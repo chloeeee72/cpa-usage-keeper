@@ -1,4 +1,4 @@
-import type { UsageCredentialHealth, UsageIdentity, UsageQuotaCheckResponse, UsageQuotaRow } from '@/lib/types'
+import type { UsageCredentialHealth, UsageIdentity, UsageIdentityCostItem, UsageQuotaCheckResponse, UsageQuotaRow } from '@/lib/types'
 import { calculateCacheReadRate, formatCompactTokenValue } from '@/utils/usage'
 import { resolveCredentialSubscriptionBadge, type SubscriptionBadgeModel } from './credentialSubscription'
 
@@ -83,6 +83,8 @@ export interface AiProviderCredentialRow {
   successRate: number | null
   totalTokens: number
   cacheReadRate: number | null
+  totalCostUsd?: number
+  costAvailable?: boolean
   lastUsedText?: string
   statsUpdatedText?: string
   credentialHealth?: UsageCredentialHealth
@@ -175,25 +177,30 @@ export function buildAuthFileCredentialRows(
   })
 }
 
-export function buildAiProviderCredentialRows(identities: UsageIdentity[]): AiProviderCredentialRow[] {
-  return identities.map((identity) => ({
-    identity,
-    displayName: credentialDisplayName(identity),
-    maskedIdentity: identity.identity,
-    providerLabel: credentialProviderLabel(identity),
-    typeLabel: credentialTypeLabel(identity),
-    authTypeLabel: credentialAuthTypeLabel(identity),
-    priorityLabel: credentialPriorityLabel(identity.priority),
-    totalRequests: safeNumber(identity.total_requests),
-    successCount: safeNumber(identity.success_count),
-    failureCount: safeNumber(identity.failure_count),
-    successRate: successRate(identity),
-    totalTokens: safeNumber(identity.total_tokens),
-    cacheReadRate: cacheReadRate(identity),
-    lastUsedText: identity.last_used_at,
-    statsUpdatedText: identity.stats_updated_at,
-    credentialHealth: identity.credential_health,
-  }))
+export function buildAiProviderCredentialRows(identities: UsageIdentity[], costs?: Record<string, UsageIdentityCostItem>): AiProviderCredentialRow[] {
+  return identities.map((identity) => {
+    const cost = costs?.[identity.id]
+    return {
+      identity,
+      displayName: credentialDisplayName(identity),
+      maskedIdentity: identity.identity,
+      providerLabel: credentialProviderLabel(identity),
+      typeLabel: credentialTypeLabel(identity),
+      authTypeLabel: credentialAuthTypeLabel(identity),
+      priorityLabel: credentialPriorityLabel(identity.priority),
+      totalRequests: safeNumber(identity.total_requests),
+      successCount: safeNumber(identity.success_count),
+      failureCount: safeNumber(identity.failure_count),
+      successRate: successRate(identity),
+      totalTokens: safeNumber(identity.total_tokens),
+      cacheReadRate: cacheReadRate(identity),
+      totalCostUsd: cost?.total_cost_usd,
+      costAvailable: cost?.cost_available,
+      lastUsedText: identity.last_used_at,
+      statsUpdatedText: identity.stats_updated_at,
+      credentialHealth: identity.credential_health,
+    }
+  })
 }
 
 function toDisplayQuota(row: UsageQuotaRow): DisplayQuota | undefined {
@@ -500,6 +507,17 @@ function cacheReadRate(identity: UsageIdentity): number | null {
     inputTokens: identity.input_tokens,
     cacheReadTokens: identity.cache_read_tokens,
   })
+}
+
+export function formatUsageIdentityTotalCost(costUsd: number | undefined, available: boolean | undefined): string {
+  if (!available || costUsd === undefined || !Number.isFinite(costUsd)) return '—'
+  if (costUsd > 0 && costUsd < 0.005) return '<$0.01'
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(costUsd)
 }
 
 function firstNonEmpty(...values: Array<string | undefined>): string | undefined {

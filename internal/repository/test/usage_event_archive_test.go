@@ -65,12 +65,15 @@ func TestArchiveExpiredUsageEventsPreservesOriginalRowAndHotSequence(t *testing.
 	generate := false
 	clientIP := "203.0.113.10"
 	ttft := int64(321)
+	errorCode := "402"
+	errorMessage := "Payment Required"
 	events := []entities.UsageEvent{
 		{
 			EventKey: "archive-me", APIGroupKey: "group-a", Provider: "openai", Endpoint: "/v1/responses",
 			AuthType: "oauth", RequestID: "request-a", ClientIP: &clientIP, Model: "gpt-5", ReasoningEffort: "high",
 			ServiceTier: "priority", ResponseServiceTier: "priority", ExecutorType: "codex", Timestamp: now.AddDate(0, 0, -91),
-			Source: "auth-a", AuthIndex: "auth-a", Failed: true, Generate: &generate, LatencyMS: 999, TTFTMS: &ttft,
+			Source: "auth-a", AuthIndex: "auth-a", Failed: true, ErrorCode: &errorCode, ErrorMessage: &errorMessage,
+			Generate: &generate, LatencyMS: 999, TTFTMS: &ttft,
 			InputTokens: 10, OutputTokens: 20, ReasoningTokens: 5, CachedTokens: 4, CacheReadTokens: 3, CacheCreationTokens: 2, TotalTokens: 35,
 		},
 		{EventKey: "recent", Model: "gpt-5", Timestamp: now.Add(-time.Hour), TotalTokens: 1},
@@ -99,6 +102,12 @@ func TestArchiveExpiredUsageEventsPreservesOriginalRowAndHotSequence(t *testing.
 	}
 	if archived.ID != original.ID || archived.EventKey != original.EventKey || archived.RequestID != original.RequestID || archived.TotalTokens != original.TotalTokens {
 		t.Fatalf("archive row did not preserve original values: original=%+v archive=%+v", original, archived)
+	}
+	if archived.ErrorCode == nil || original.ErrorCode == nil || *archived.ErrorCode != *original.ErrorCode {
+		t.Fatalf("archive row did not preserve error_code: original=%+v archive=%+v", original.ErrorCode, archived.ErrorCode)
+	}
+	if archived.ErrorMessage == nil || original.ErrorMessage == nil || *archived.ErrorMessage != *original.ErrorMessage {
+		t.Fatalf("archive row did not preserve error_message: original=%+v archive=%+v", original.ErrorMessage, archived.ErrorMessage)
 	}
 	var oldHotCount int64
 	if err := db.Model(&entities.UsageEvent{}).Where("id = ?", original.ID).Count(&oldHotCount).Error; err != nil {

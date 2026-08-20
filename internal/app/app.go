@@ -246,6 +246,7 @@ func NewWithConfig(cfg config.Config) (*App, error) {
 	usageIdentityService := service.NewUsageIdentityServiceWithOptions(db, recentUsageCache, service.UsageIdentityServiceOptions{
 		OnDisplayNameChanged: quotaService.UpdateUsageIdentityDisplayNameSnapshot,
 	})
+	usageIdentityCostService := service.NewUsageIdentityCostService(db, pricingCatalog)
 	balanceService := service.NewBalanceService(db, balance.NewClient(balance.ClientOptions{
 		BaseURL:    "https://tokenrhythm.studio",
 		HTTPClient: &http.Client{Timeout: 8 * time.Second},
@@ -308,7 +309,8 @@ func NewWithConfig(cfg config.Config) (*App, error) {
 					CPAPublicURL:               cfg.CPAPublicURL,
 					CPARequestLogAccessEnabled: cfg.CPARequestLogAccessEnabled,
 				},
-				Balance: balanceService,
+				Balance:            balanceService,
+				UsageIdentityCosts: usageIdentityCostService,
 			},
 		),
 	}, nil

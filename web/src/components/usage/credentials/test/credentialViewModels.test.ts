@@ -4,6 +4,7 @@ import {
   CREDENTIALS_PAGE_SIZE,
   buildAiProviderCredentialRows,
   buildAuthFileCredentialRows,
+  formatUsageIdentityTotalCost,
   paginateCredentials,
   selectQuotaEligibleAuthIndexes,
   splitCredentialIdentities,
@@ -590,5 +591,28 @@ describe('credentialViewModels', () => {
     expect(rows[0].totalTokens).toBe(0)
     expect(rows[0].cacheReadRate).toBeNull()
     expect('displayQuotas' in rows[0]).toBe(false)
+  })
+
+  it('merges AI provider total cost by identity id', () => {
+    const rows = buildAiProviderCredentialRows([
+      identity({ id: '2', auth_type: 2, identity: 'sk-a***1234' }),
+      identity({ id: '3', auth_type: 2, identity: 'sk-b***5678' }),
+    ], {
+      '2': { identity_id: '2', total_cost_usd: 12.345678, cost_available: true },
+      '3': { identity_id: '3', total_cost_usd: 0, cost_available: false },
+    })
+
+    expect(rows[0].totalCostUsd).toBe(12.345678)
+    expect(rows[0].costAvailable).toBe(true)
+    expect(rows[1].totalCostUsd).toBe(0)
+    expect(rows[1].costAvailable).toBe(false)
+  })
+
+  it('formats AI provider total cost as USD or dash', () => {
+    expect(formatUsageIdentityTotalCost(12.345678, true)).toBe('$12.35')
+    expect(formatUsageIdentityTotalCost(0.001, true)).toBe('<$0.01')
+    expect(formatUsageIdentityTotalCost(0, true)).toBe('$0.00')
+    expect(formatUsageIdentityTotalCost(undefined, true)).toBe('—')
+    expect(formatUsageIdentityTotalCost(12.34, false)).toBe('—')
   })
 })

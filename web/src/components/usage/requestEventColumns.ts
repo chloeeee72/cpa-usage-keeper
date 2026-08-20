@@ -7,6 +7,7 @@ export const REQUEST_EVENT_COLUMN_IDS = [
   'reasoning_effort',
   'service_tier',
   'result',
+  'error',
   'request_type',
   'endpoint',
   'ttft',

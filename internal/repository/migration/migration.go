@@ -83,6 +83,8 @@ const (
 	migrationDropRankingTables = "20260818_drop_ranking_tables"
 	// migrationAddUsageIdentityBalanceSession 为 TokenRhythm 余额查询保存 tr_session Cookie 值。
 	migrationAddUsageIdentityBalanceSession = "20260819_add_usage_identity_balance_session"
+	// migrationAddUsageEventErrorFields 为请求事件保存错误短码与原因。
+	migrationAddUsageEventErrorFields = "20260820_add_usage_event_error_fields"
 )
 
 type schemaMigration struct {
@@ -203,6 +205,7 @@ func orderedMigrations() []databaseMigration {
 		{version: migrationModelPricePeakHoursConfig, run: modelPricePeakHoursConfigMigration},
 		{version: migrationDropRankingTables, run: dropRankingTablesMigration},
 		{version: migrationAddUsageIdentityBalanceSession, run: addUsageIdentityBalanceSessionMigration},
+		{version: migrationAddUsageEventErrorFields, run: addUsageEventErrorFieldsMigration},
 	}
 }
 

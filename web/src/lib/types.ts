@@ -260,6 +260,8 @@ export interface UsageEvent {
   auth_index?: string
   isDelete?: boolean
   failed: boolean
+  error_code?: string | null
+  error_message?: string | null
   latency_ms: number
   ttft_ms?: number
   speed_tps?: number
@@ -834,6 +836,17 @@ export interface BalanceQueryResponse {
   configured_count: number
   succeeded_count: number
   failed_count: number
+  generated_at: string
+}
+
+export interface UsageIdentityCostItem {
+  identity_id: string
+  total_cost_usd: number
+  cost_available: boolean
+}
+
+export interface UsageIdentityCostsResponse {
+  items: UsageIdentityCostItem[]
   generated_at: string
 }
 

@@ -67,7 +67,7 @@ describe('UsagePage request event cache column preferences', () => {
       visibleColumnIds: V7_FULL_COLUMNS,
     });
 
-    expect(preferences.version).toBe(8);
+    expect(preferences.version).toBe(9);
     expect(preferences.visibleColumnIds).toEqual(REQUEST_EVENT_COLUMN_IDS);
   });
 
@@ -79,7 +79,7 @@ describe('UsagePage request event cache column preferences', () => {
       columnOrder: V7_FULL_COLUMNS,
     });
 
-    expect(preferences.version).toBe(8);
+    expect(preferences.version).toBe(9);
     expect(preferences.visibleColumnIds).toEqual(REQUEST_EVENT_COLUMN_IDS);
     expect(preferences.columnOrder.slice(-3)).toEqual([
       'client_ip',
@@ -100,8 +100,8 @@ describe('UsagePage request event cache column preferences', () => {
       columnOrder,
     });
 
-    expect(preferences.version).toBe(8);
-    expect(preferences.visibleColumnIds).toEqual(['timestamp', 'model']);
+    expect(preferences.version).toBe(9);
+    expect(preferences.visibleColumnIds).toEqual(['timestamp', 'model', 'error']);
     expect(preferences.columnOrder).toEqual(columnOrder);
   });
 
@@ -127,7 +127,7 @@ describe('UsagePage request event cache column preferences', () => {
       visibleColumnIds: LEGACY_V3_FULL_COLUMNS,
     });
 
-    expect(preferences.version).toBe(8);
+    expect(preferences.version).toBe(9);
     expect(preferences.visibleColumnIds).toEqual(REQUEST_EVENT_COLUMN_IDS);
     expect(preferences.visibleColumnIds).toContain('cache_read_tokens');
     expect(preferences.visibleColumnIds).toContain('cache_creation_tokens');
@@ -140,7 +140,7 @@ describe('UsagePage request event cache column preferences', () => {
       visibleColumnIds: MERGED_V6_FULL_COLUMNS,
     });
 
-    expect(preferences.version).toBe(8);
+    expect(preferences.version).toBe(9);
     expect(preferences.visibleColumnIds).toEqual(REQUEST_EVENT_COLUMN_IDS);
     expect(preferences.visibleColumnIds).not.toContain('response_service_tier' as never);
   });
@@ -152,7 +152,7 @@ describe('UsagePage request event cache column preferences', () => {
       visibleColumnIds: ['timestamp', 'response_service_tier', 'total_tokens'],
     });
 
-    expect(preferences.visibleColumnIds).toEqual(['timestamp', 'service_tier', 'total_tokens']);
+    expect(preferences.visibleColumnIds).toEqual(['timestamp', 'service_tier', 'total_tokens', 'error']);
   });
 
   it('upgrades a v4 full selection and maps cache rate to cache read rate', () => {
@@ -174,7 +174,7 @@ describe('UsagePage request event cache column preferences', () => {
       visibleColumnIds: ['timestamp', 'cached_tokens', 'total_tokens'],
     });
 
-    expect(preferences.visibleColumnIds).toEqual(['timestamp', 'cache_read_tokens', 'total_tokens']);
+    expect(preferences.visibleColumnIds).toEqual(['timestamp', 'cache_read_tokens', 'total_tokens', 'error']);
     expect(preferences.visibleColumnIds).not.toContain('cache_creation_tokens');
   });
 
@@ -195,7 +195,7 @@ describe('UsagePage request event cache column preferences', () => {
       visibleColumnIds: ['timestamp', 'cached_tokens', 'speed'],
     });
 
-    expect(preferences.visibleColumnIds).toEqual(['timestamp', 'cache_read_tokens', 'speed']);
+    expect(preferences.visibleColumnIds).toEqual(['timestamp', 'cache_read_tokens', 'speed', 'error']);
     expect(preferences.visibleColumnIds).not.toContain('model_alias');
     expect(preferences.visibleColumnIds).not.toContain('cache_creation_tokens');
   });
@@ -213,6 +213,47 @@ describe('UsagePage request event cache column preferences', () => {
       'cache_creation_tokens',
       'cache_read_tokens',
       'timestamp',
+      'error',
     ]);
+  });
+
+  it('upgrades a v8 full selection by inserting error after result', () => {
+    const v8FullColumns = REQUEST_EVENT_COLUMN_IDS.filter((columnId) => columnId !== 'error');
+    const preferences = normalizeRequestEventsPreferences({
+      version: 8,
+      visibleColumnIds: v8FullColumns,
+      columnOrder: v8FullColumns,
+    });
+
+    expect(preferences.version).toBe(9);
+    expect(preferences.visibleColumnIds).toEqual(REQUEST_EVENT_COLUMN_IDS);
+    expect(preferences.columnOrder).toEqual(REQUEST_EVENT_COLUMN_IDS);
+  });
+
+  it('inserts error after result for a v8 custom column selection', () => {
+    const preferences = normalizeRequestEventsPreferences({
+      version: 8,
+      visibleColumnIds: ['result', 'timestamp', 'model'],
+      columnOrder: ['total_cost', 'result', 'timestamp'],
+    });
+
+    expect(preferences.version).toBe(9);
+    expect(preferences.visibleColumnIds).toEqual(['result', 'error', 'timestamp', 'model']);
+    expect(preferences.columnOrder.slice(0, 4)).toEqual(['total_cost', 'result', 'error', 'timestamp']);
+    expect(preferences.columnOrder).toContain('error');
+  });
+
+  it('keeps a v9 preference that intentionally hides error', () => {
+    const hiddenErrorColumnIds = REQUEST_EVENT_COLUMN_IDS.filter((columnId) => columnId !== 'error');
+    const preferences = normalizeRequestEventsPreferences({
+      version: 9,
+      visibleColumnIds: hiddenErrorColumnIds,
+      columnOrder: REQUEST_EVENT_COLUMN_IDS,
+    });
+
+    expect(preferences.version).toBe(9);
+    expect(preferences.visibleColumnIds).toEqual(hiddenErrorColumnIds);
+    expect(preferences.visibleColumnIds).not.toContain('error');
+    expect(preferences.columnOrder).toEqual(REQUEST_EVENT_COLUMN_IDS);
   });
 });

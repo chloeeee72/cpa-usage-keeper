@@ -416,6 +416,66 @@ func TestUsageEventsReturnsFilteredRows(t *testing.T) {
 	}
 }
 
+func TestUsageEventsReturnsErrorCodeAndMessage(t *testing.T) {
+	provider := &usageEventsStub{events: []servicedto.UsageEventRecord{
+		{
+			ID:           42,
+			Timestamp:    time.Date(2026, 4, 22, 11, 0, 0, 0, time.UTC),
+			Model:        "claude-sonnet",
+			AuthType:     "apikey",
+			Provider:     "OpenAI Mirror",
+			Source:       "sk-provider-key",
+			AuthIndex:    "2",
+			Failed:       true,
+			ErrorCode:    usageEventStringPtr("402"),
+			ErrorMessage: usageEventStringPtr("Payment Required"),
+			LatencyMS:    2045,
+		},
+		{
+			ID:        43,
+			Timestamp: time.Date(2026, 4, 22, 11, 1, 0, 0, time.UTC),
+			Model:     "claude-sonnet",
+			AuthType:  "apikey",
+			Provider:  "OpenAI Mirror",
+			Source:    "sk-provider-key",
+			AuthIndex: "2",
+			Failed:    false,
+			LatencyMS: 1000,
+		},
+	}}
+	router := NewRouter(nil, nil, provider, nil, AuthConfig{}, nil, "")
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/usage/events?range=24h", nil)
+	resp := httptest.NewRecorder()
+
+	router.ServeHTTP(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", resp.Code)
+	}
+	body := resp.Body.String()
+	if !contains(body, `"error_code":"402"`) || !contains(body, `"error_message":"Payment Required"`) {
+		t.Fatalf("expected error fields for failed event in response body: %s", body)
+	}
+	if !contains(body, `"failed":true`) || !contains(body, `"failed":false`) {
+		t.Fatalf("expected failed flags in response body: %s", body)
+	}
+	var response struct {
+		Events []map[string]any `json:"events"`
+	}
+	if err := json.Unmarshal(resp.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode response body: %v", err)
+	}
+	if len(response.Events) != 2 {
+		t.Fatalf("expected two events, got %d", len(response.Events))
+	}
+	if _, exists := response.Events[1]["error_code"]; exists {
+		t.Fatalf("expected successful event to omit error_code, got %s", body)
+	}
+	if _, exists := response.Events[1]["error_message"]; exists {
+		t.Fatalf("expected successful event to omit error_message, got %s", body)
+	}
+}
+
 func TestUsageEventRequestLogReturnsStructuredLog(t *testing.T) {
 	provider := &usageEventsStub{}
 	requestLogProvider := &requestLogProviderStub{response: service.RequestLogResponse{
@@ -808,6 +868,8 @@ func TestUsageEventsExportCSVReturnsFilteredRowsWithoutPagination(t *testing.T) 
 		Provider:            "Provider Fallback",
 		AuthIndex:           "authidx-export-main",
 		Failed:              true,
+		ErrorCode:           usageEventStringPtr("402"),
+		ErrorMessage:        usageEventStringPtr("Payment Required"),
 		LatencyMS:           2045,
 		TTFTMS:              usageEventInt64Ptr(45),
 		InputTokens:         10,
@@ -863,6 +925,9 @@ func TestUsageEventsExportCSVReturnsFilteredRowsWithoutPagination(t *testing.T) 
 	}
 	if !contains(body, "cpa_api_key_id") || !contains(body, "auth_index") || !contains(body, "model_alias") || !contains(body, "response_service_tier") || !contains(body, "executor_type") || !contains(body, "is_identity_deleted") {
 		t.Fatalf("expected cpa_api_key_id, auth_index, model_alias, response_service_tier, executor_type, and is_identity_deleted columns, got %s", body)
+	}
+	if !contains(body, "result,error_code,error_message,endpoint") || !contains(body, ",failed,402,Payment Required,POST /v1/responses,") {
+		t.Fatalf("expected error columns after result in csv export, got %s", body)
 	}
 	if !contains(body, "cache_read_tokens,cache_creation_tokens,cache_read_rate") || !contains(body, ",3,4,30,") || contains(body, "cached_tokens") {
 		t.Fatalf("expected canonical cache token fields in csv export, got %s", body)

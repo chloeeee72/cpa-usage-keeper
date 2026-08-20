@@ -94,7 +94,8 @@ describe('RequestEventsDetailsCard pagination', () => {
     expect(html.indexOf('>Model</th>')).toBeLessThan(html.indexOf('title="Reasoning Effort">Effort</th>'));
     expect(html.indexOf('title="Reasoning Effort">Effort</th>')).toBeLessThan(html.indexOf('>Speed Mode</th>'));
     expect(html.indexOf('>Speed Mode</th>')).toBeLessThan(html.indexOf('>Result</th>'));
-    expect(html.indexOf('>Result</th>')).toBeLessThan(html.indexOf('>Type</th>'));
+    expect(html.indexOf('>Result</th>')).toBeLessThan(html.indexOf('>Error</th>'));
+    expect(html.indexOf('>Error</th>')).toBeLessThan(html.indexOf('>Type</th>'));
     expect(html.indexOf('>Type</th>')).toBeLessThan(html.indexOf('>Endpoint</th>'));
     expect(html.indexOf('>Endpoint</th>')).toBeLessThan(html.indexOf('title="Time to First Token">TTFT</th>'));
     expect(html.indexOf('title="Time to First Token">TTFT</th>')).toBeLessThan(html.indexOf('title="Using latency_ms in ms">Latency</th>'));
@@ -150,7 +151,7 @@ describe('RequestEventsDetailsCard pagination', () => {
     });
 
     expect(html.indexOf('title="Time to First Token">TTFT</th>')).toBeLessThan(html.indexOf('title="Using latency_ms in ms">Latency</th>'));
-    expect(html).toMatch(/Success<\/span><\/td><td class="[^"]*requestEventsNoWrapCell[^"]*">SSE<\/td><td class="[^"]*requestEventsNoWrapCell[^"]*" title="\/messages">\/messages<\/td><td class="[^"]*requestEventsNoWrapCell[^"]*">-<\/td><td class="[^"]*requestEventsNoWrapCell[^"]*">120ms<\/td><td class="[^"]*requestEventsNoWrapCell[^"]*">-<\/td>/);
+    expect(html).toMatch(/Success<\/span><\/td><td class="[^"]*requestEventsNoWrapCell[^"]*" title="-">-<\/td><td class="[^"]*requestEventsNoWrapCell[^"]*">SSE<\/td><td class="[^"]*requestEventsNoWrapCell[^"]*" title="\/messages">\/messages<\/td><td class="[^"]*requestEventsNoWrapCell[^"]*">-<\/td><td class="[^"]*requestEventsNoWrapCell[^"]*">120ms<\/td><td class="[^"]*requestEventsNoWrapCell[^"]*">-<\/td>/);
   });
 
   it('keeps the Latency column visible when latency is missing', () => {
@@ -168,7 +169,7 @@ describe('RequestEventsDetailsCard pagination', () => {
       events: [{ ...events[0], ttft_ms: 0, speed_tps: undefined }],
     });
 
-    expect(html).toMatch(/Success<\/span><\/td><td class="[^"]*requestEventsNoWrapCell[^"]*">SSE<\/td><td class="[^"]*requestEventsNoWrapCell[^"]*" title="\/messages">\/messages<\/td><td class="[^"]*requestEventsNoWrapCell[^"]*">-<\/td><td class="[^"]*requestEventsNoWrapCell[^"]*">120ms<\/td><td class="[^"]*requestEventsNoWrapCell[^"]*">-<\/td>/);
+    expect(html).toMatch(/Success<\/span><\/td><td class="[^"]*requestEventsNoWrapCell[^"]*" title="-">-<\/td><td class="[^"]*requestEventsNoWrapCell[^"]*">SSE<\/td><td class="[^"]*requestEventsNoWrapCell[^"]*" title="\/messages">\/messages<\/td><td class="[^"]*requestEventsNoWrapCell[^"]*">-<\/td><td class="[^"]*requestEventsNoWrapCell[^"]*">120ms<\/td><td class="[^"]*requestEventsNoWrapCell[^"]*">-<\/td>/);
   });
 
   it('maps GET endpoints to WS and strips the v1 prefix', () => {
@@ -397,6 +398,32 @@ describe('RequestEventsDetailsCard pagination', () => {
     expect(html).not.toContain('_requestEventsExportButtonInner_');
     expect(html).not.toContain('Export CSV');
     expect(html).not.toContain('Export JSON');
+  });
+
+  it('renders the error column with code and message for failed events', () => {
+    const html = renderCard({
+      events: [{
+        ...events[0],
+        failed: true,
+        error_code: ' 402 ',
+        error_message: ' Payment Required ',
+      }],
+    });
+
+    expect(html).toContain('>Error</th>');
+    expect(html).toMatch(/<td class="[^"]*requestEventsErrorCell[^"]*" title="402 Payment Required">402 Payment Required<\/td>/);
+  });
+
+  it('renders a dash in the error column for successful or legacy failed events', () => {
+    const html = renderCard({
+      events: [
+        { ...events[0], failed: false, error_code: undefined, error_message: undefined },
+        { ...events[0], id: 'legacy-failed', failed: true, error_code: undefined, error_message: undefined },
+      ],
+    });
+
+    const errorDashCells = html.match(/<td class="[^"]*requestEventsNoWrapCell[^"]*" title="-">-<\/td>/g) ?? [];
+    expect(errorDashCells).toHaveLength(2);
   });
 
   it('shows per-event cost returned by the backend', () => {

@@ -124,6 +124,9 @@ type RequestEventRow = {
   authIndex: string;
   isDelete: boolean;
   failed: boolean;
+  errorCode: string;
+  errorMessage: string;
+  errorLabel: string;
   latencyMs: number | null;
   latencyLabel: string;
   ttftMs: number | null;
@@ -343,6 +346,16 @@ const formatRequestEventTimestamp = (timestamp: string): string => {
   const match = timestamp.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2}):(\d{2})/);
   if (!match) return timestamp || '-';
   return `${match[1]}/${match[2]}/${match[3]} ${match[4]}:${match[5]}:${match[6]}`;
+};
+
+const formatRequestEventError = (event: UsageEvent): string => {
+  if (!event.failed) return '-';
+  const code = String(event.error_code ?? '').trim();
+  const message = String(event.error_message ?? '').trim();
+  if (code && message) return `${code} ${message}`;
+  if (code) return code;
+  if (message) return message;
+  return '-';
 };
 
 const formatCacheReadRate = (cacheReadTokens: number, inputTokens: number): string => {
@@ -776,6 +789,9 @@ export function RequestEventsDetailsCard({
         authIndex,
         isDelete: event.isDelete === true,
         failed: event.failed === true,
+        errorCode: String(event.error_code ?? '').trim(),
+        errorMessage: String(event.error_message ?? '').trim(),
+        errorLabel: formatRequestEventError(event),
         latencyMs,
         latencyLabel: formatDurationMs(latencyMs),
         ttftMs,
@@ -1083,6 +1099,16 @@ export function RequestEventsDetailsCard({
             </td>
           );
         },
+      },
+      {
+        id: 'error',
+        label: t('usage_stats.request_events_error'),
+        header: <th className={styles.requestEventsNoWrapCell}>{t('usage_stats.request_events_error')}</th>,
+        renderCell: (row) => (
+          <td className={`${styles.requestEventsNoWrapCell} ${row.failed ? styles.requestEventsErrorCell : ''}`.trim()} title={row.errorLabel}>
+            {row.errorLabel}
+          </td>
+        ),
       },
       {
         id: 'request_type',

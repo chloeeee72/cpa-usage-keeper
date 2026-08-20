@@ -62,6 +62,8 @@ type usageEventPayload struct {
 	RequestID           string                 `json:"request_id,omitempty"`
 	IsDelete            bool                   `json:"isDelete,omitempty"`
 	Failed              bool                   `json:"failed"`
+	ErrorCode           *string                `json:"error_code,omitempty"`
+	ErrorMessage        *string                `json:"error_message,omitempty"`
 	LatencyMS           int64                  `json:"latency_ms"`
 	TTFTMS              *int64                 `json:"ttft_ms,omitempty"`
 	SpeedTPS            *float64               `json:"speed_tps,omitempty"`
@@ -119,6 +121,8 @@ type usageEventExportPayload struct {
 	UserAgent           *string  `json:"user_agent"`
 	ExecutorType        string   `json:"executor_type"`
 	Result              string   `json:"result"`
+	ErrorCode           string   `json:"error_code,omitempty"`
+	ErrorMessage        string   `json:"error_message,omitempty"`
 	Endpoint            string   `json:"endpoint"`
 	TTFTMS              *int64   `json:"ttft_ms"`
 	LatencyMS           int64    `json:"latency_ms"`
@@ -445,6 +449,8 @@ func buildUsageEventsPayload(rows []servicedto.UsageEventRecord, resolver usageI
 			RequestID:           strings.TrimSpace(row.RequestID),
 			IsDelete:            isDelete,
 			Failed:              row.Failed,
+			ErrorCode:           row.ErrorCode,
+			ErrorMessage:        row.ErrorMessage,
 			LatencyMS:           row.LatencyMS,
 			TTFTMS:              row.TTFTMS,
 			SpeedTPS:            usageEventSpeedTPS(row),
@@ -531,6 +537,8 @@ func buildUsageEventExportPayload(row servicedto.UsageEventRecord, resolver usag
 		UserAgent:           row.UserAgent,
 		ExecutorType:        strings.TrimSpace(row.ExecutorType),
 		Result:              result,
+		ErrorCode:           strings.TrimSpace(stringValueOrEmpty(row.ErrorCode)),
+		ErrorMessage:        strings.TrimSpace(stringValueOrEmpty(row.ErrorMessage)),
 		Endpoint:            strings.TrimSpace(row.Endpoint),
 		TTFTMS:              row.TTFTMS,
 		LatencyMS:           row.LatencyMS,
@@ -544,6 +552,13 @@ func buildUsageEventExportPayload(row servicedto.UsageEventRecord, resolver usag
 		TotalTokens:         row.TotalTokens,
 		CostUSD:             row.CostUSD,
 	}
+}
+
+func stringValueOrEmpty(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 func usageEventSpeedTPS(row servicedto.UsageEventRecord) *float64 {
@@ -579,6 +594,8 @@ var usageEventsExportCSVHeader = []string{
 	"response_service_tier",
 	"executor_type",
 	"result",
+	"error_code",
+	"error_message",
 	"endpoint",
 	"ttft_ms",
 	"latency_ms",
@@ -776,6 +793,8 @@ func usageEventExportCSVRecord(event usageEventExportPayload) []string {
 		event.ResponseServiceTier,
 		event.ExecutorType,
 		event.Result,
+		event.ErrorCode,
+		event.ErrorMessage,
 		event.Endpoint,
 		formatOptionalInt64(event.TTFTMS),
 		strconv.FormatInt(event.LatencyMS, 10),

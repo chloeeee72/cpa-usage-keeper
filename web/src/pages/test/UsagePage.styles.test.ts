@@ -1283,6 +1283,7 @@ describe('UsagePage toolbar styles', () => {
       'reasoning_effort',
       'service_tier',
       'result',
+      'error',
       'request_type',
       'endpoint',
       'ttft',

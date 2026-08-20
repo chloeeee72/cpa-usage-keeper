@@ -38,6 +38,9 @@ lerna-debug.log*
 # local overrides
 *.local
 
+# local build artifacts
+server-linux
+
 # editor and OS files
 .DS_Store
 .vscode/

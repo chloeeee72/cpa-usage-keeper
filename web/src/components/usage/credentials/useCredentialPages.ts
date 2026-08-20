@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ApiError, fetchUsageIdentitiesPage, type UsageIdentityPageSort } from '@/lib/api'
-import type { UsageIdentity, UsageIdentityTypeCount } from '@/lib/types'
+import { ApiError, fetchUsageIdentitiesPage, fetchUsageIdentityCosts, type UsageIdentityPageSort } from '@/lib/api'
+import type { UsageIdentity, UsageIdentityCostItem, UsageIdentityTypeCount } from '@/lib/types'
 import { credentialProviderFilterTypes, type CredentialProviderFilterKey } from './credentialProviderFilters'
 import { CREDENTIALS_PAGE_SIZE } from './credentialViewModels'
 
@@ -49,6 +49,8 @@ export interface CredentialPagesState {
   aiProviderProviderFilter: CredentialProviderFilterKey
   authFileSort: UsageIdentityPageSort
   aiProviderSort: UsageIdentityPageSort
+  aiProviderCosts: Record<string, UsageIdentityCostItem>
+  refreshAiProviderCosts: () => Promise<void>
   setAuthFilePage: (page: number) => void
   setAiProviderPage: (page: number) => void
   setAuthFilePageSize: (pageSize: number) => void
@@ -86,8 +88,11 @@ export function useCredentialPages({ enabledAuthFiles, enabledAiProviders, onAut
   const [aiProviderSort, setAiProviderSortState] = useState<UsageIdentityPageSort>('total_requests')
   const [authFilesLoading, setAuthFilesLoading] = useState(false)
   const [aiProvidersLoading, setAiProvidersLoading] = useState(false)
+  const [aiProviderCosts, setAiProviderCosts] = useState<Record<string, UsageIdentityCostItem>>({})
   const authFilesRequestControllerRef = useRef<AbortController | null>(null)
   const aiProvidersRequestControllerRef = useRef<AbortController | null>(null)
+  const aiProviderCostsFetchedAtRef = useRef(0)
+  const aiProviderCostsControllerRef = useRef<AbortController | null>(null)
 
   const setAuthFilePageSize = useCallback((pageSize: number) => {
     setAuthFilePage(1)
@@ -209,13 +214,46 @@ export function useCredentialPages({ enabledAuthFiles, enabledAiProviders, onAut
     }
   }, [aiProviderPage, aiProviderPageSize, aiProviderProviderFilter, aiProviderSort, onAuthRequired])
 
+  const refreshAiProviderCosts = useCallback(async () => {
+    if (Date.now() - aiProviderCostsFetchedAtRef.current < 5 * 60 * 1000) {
+      return
+    }
+    aiProviderCostsControllerRef.current?.abort()
+    const controller = new AbortController()
+    aiProviderCostsControllerRef.current = controller
+    try {
+      const response = await fetchUsageIdentityCosts(2, controller.signal)
+      if (aiProviderCostsControllerRef.current !== controller) return
+      const costs: Record<string, UsageIdentityCostItem> = {}
+      for (const item of response.items ?? []) {
+        costs[item.identity_id] = item
+      }
+      setAiProviderCosts(costs)
+      aiProviderCostsFetchedAtRef.current = Date.now()
+    } catch (nextError) {
+      if (controller.signal.aborted) return
+      if (nextError instanceof ApiError && nextError.status === 401) {
+        onAuthRequired?.()
+        return
+      }
+      // 成本列加载失败不阻塞凭证列表展示，保留旧值。
+    } finally {
+      if (aiProviderCostsControllerRef.current === controller) {
+        aiProviderCostsControllerRef.current = null
+      }
+    }
+  }, [onAuthRequired])
+
   const refresh = useCallback(async () => {
     // 两个凭证页已经拆成独立 tab，手动刷新只触发当前可见列表。
     const tasks = []
     if (enabledAuthFiles) tasks.push(refreshAuthFiles())
-    if (enabledAiProviders) tasks.push(refreshAiProviders())
+    if (enabledAiProviders) {
+      tasks.push(refreshAiProviders())
+      tasks.push(refreshAiProviderCosts())
+    }
     await Promise.all(tasks)
-  }, [enabledAiProviders, enabledAuthFiles, refreshAiProviders, refreshAuthFiles])
+  }, [enabledAiProviders, enabledAuthFiles, refreshAiProviders, refreshAiProviderCosts, refreshAuthFiles])
 
   useEffect(() => {
     if (!enabledAuthFiles) {
@@ -239,19 +277,25 @@ export function useCredentialPages({ enabledAuthFiles, enabledAiProviders, onAut
     if (!enabledAiProviders) {
       aiProvidersRequestControllerRef.current?.abort()
       aiProvidersRequestControllerRef.current = null
+      aiProviderCostsControllerRef.current?.abort()
+      aiProviderCostsControllerRef.current = null
       setAiProvidersLoading(false)
       return
     }
     void refreshAiProviders()
+    void refreshAiProviderCosts()
     const intervalID = window.setInterval(() => {
       void refreshAiProviders()
+      void refreshAiProviderCosts()
     }, CREDENTIAL_PAGES_REFRESH_INTERVAL_MS)
     return () => {
       window.clearInterval(intervalID)
       aiProvidersRequestControllerRef.current?.abort()
       aiProvidersRequestControllerRef.current = null
+      aiProviderCostsControllerRef.current?.abort()
+      aiProviderCostsControllerRef.current = null
     }
-  }, [enabledAiProviders, refreshAiProviders])
+  }, [enabledAiProviders, refreshAiProviders, refreshAiProviderCosts])
 
   return {
     authFileIdentities,
@@ -271,6 +315,8 @@ export function useCredentialPages({ enabledAuthFiles, enabledAiProviders, onAut
     aiProviderProviderFilter,
     authFileSort,
     aiProviderSort,
+    aiProviderCosts,
+    refreshAiProviderCosts,
     setAuthFilePage,
     setAiProviderPage,
     setAuthFilePageSize,

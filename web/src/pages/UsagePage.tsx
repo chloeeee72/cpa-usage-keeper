@@ -72,8 +72,8 @@ const DEFAULT_USAGE_TAB: UsageTab = 'overview';
 const USAGE_TAB_STORAGE_KEY = 'cli-proxy-usage-tab-v1';
 const REQUEST_EVENTS_DEFAULT_PAGE_SIZE = 50;
 const REQUEST_EVENTS_CUSTOM_DAY_RANGE_MAX_DAYS = 90;
-// v7 是完整列顺序格式；v8 加入客户端请求元数据列，并保留历史自定义顺序。
-const REQUEST_EVENTS_PREFERENCES_VERSION = 8;
+// v7 是完整列顺序格式；v8 加入客户端请求元数据列，并保留历史自定义顺序；v9 在 Result 后新增 Error 列。
+const REQUEST_EVENTS_PREFERENCES_VERSION = 9;
 const ALL_REQUEST_EVENTS_FILTER = '__all__';
 const OVERVIEW_AUTO_REFRESH_INTERVAL_MS = 10_000;
 const CPA_MANAGEMENT_PAGE = 'management.html';
@@ -470,6 +470,18 @@ const migrateRequestEventColumnId = (value: unknown): RequestEventColumnId | nul
   return isRequestEventColumnId(value) ? value : null;
 };
 
+// v9 新增 Error 列：旧偏好里没有 error 时，把它插到 Result 之后；若旧列表没有 Result，则追加到末尾。
+const insertRequestEventErrorColumn = (columnIds: readonly RequestEventColumnId[]): RequestEventColumnId[] => {
+  const withoutError = columnIds.filter((columnId) => columnId !== 'error');
+  const resultIndex = withoutError.indexOf('result');
+  const insertIndex = resultIndex >= 0 ? resultIndex + 1 : withoutError.length;
+  return [
+    ...withoutError.slice(0, insertIndex),
+    'error',
+    ...withoutError.slice(insertIndex),
+  ];
+};
+
 const normalizeRequestEventPreferenceColumnIds = (value: unknown, version: unknown): RequestEventColumnId[] => {
   if (!Array.isArray(value)) {
     return [...REQUEST_EVENT_COLUMN_IDS];
@@ -500,7 +512,11 @@ const normalizeRequestEventPreferenceColumnIds = (value: unknown, version: unkno
     seen.add(columnId);
     normalized.push(columnId);
   }
-  return normalized.length > 0 ? normalized : [...REQUEST_EVENT_COLUMN_IDS];
+  const result = normalized.length > 0 ? normalized : [...REQUEST_EVENT_COLUMN_IDS];
+  if (version !== REQUEST_EVENTS_PREFERENCES_VERSION) {
+    return insertRequestEventErrorColumn(result);
+  }
+  return result;
 };
 
 const normalizeRequestEventPreferenceColumnOrder = (value: unknown, version: unknown): RequestEventColumnId[] => {
@@ -511,7 +527,11 @@ const normalizeRequestEventPreferenceColumnOrder = (value: unknown, version: unk
   if (version === 7 && hasSameRequestEventColumnOrder(rawColumnIds, LEGACY_REQUEST_EVENT_COLUMN_IDS_V7)) {
     return [...REQUEST_EVENT_COLUMN_IDS];
   }
-  return normalizeRequestEventColumnOrder(rawColumnIds.filter(isRequestEventColumnId));
+  const normalized = normalizeRequestEventColumnOrder(rawColumnIds.filter(isRequestEventColumnId));
+  if (version !== REQUEST_EVENTS_PREFERENCES_VERSION) {
+    return insertRequestEventErrorColumn(normalized);
+  }
+  return normalized;
 };
 
 export const normalizeRequestEventsPreferences = (value: unknown): RequestEventsPreferences => {

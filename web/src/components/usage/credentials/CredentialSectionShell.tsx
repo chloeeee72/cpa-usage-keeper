@@ -29,9 +29,11 @@ interface CredentialTableHeaderProps {
   totalRequestsLabel: string
   successRateLabel: string
   totalTokensLabel: string
+  totalCostLabel?: string
   cacheReadRateLabel: string
   sideLabel: string
   rowClassName?: string
+  resizers?: ReactNode
 }
 
 export function CredentialSectionShell({ title, subtitle, countLabel, titleExtra, actions, style, children }: CredentialSectionShellProps) {
@@ -75,7 +77,7 @@ export function CredentialRowShell({ icon, title, subtitle, badges, metrics, sid
   )
 }
 
-export function CredentialTableHeader({ nameLabel, totalRequestsLabel, successRateLabel, totalTokensLabel, cacheReadRateLabel, sideLabel, rowClassName }: CredentialTableHeaderProps) {
+export function CredentialTableHeader({ nameLabel, totalRequestsLabel, successRateLabel, totalTokensLabel, totalCostLabel, cacheReadRateLabel, sideLabel, rowClassName, resizers }: CredentialTableHeaderProps) {
   return (
     <div className={`${styles.credentialTableHeader} ${rowClassName ?? ''}`.trim()}>
       <span className={styles.credentialTableHeaderName}>{nameLabel}</span>
@@ -83,9 +85,11 @@ export function CredentialTableHeader({ nameLabel, totalRequestsLabel, successRa
         <span className={styles.credentialMetricHeaderCell}>{totalRequestsLabel}</span>
         <span className={styles.credentialMetricHeaderCell}>{successRateLabel}</span>
         <span className={styles.credentialMetricHeaderCell}>{totalTokensLabel}</span>
+        {totalCostLabel && <span className={styles.credentialMetricHeaderCell}>{totalCostLabel}</span>}
         <span className={styles.credentialMetricHeaderCell}>{cacheReadRateLabel}</span>
       </div>
       <span className={styles.credentialTableHeaderSide}>{sideLabel}</span>
+      {resizers}
     </div>
   )
 }

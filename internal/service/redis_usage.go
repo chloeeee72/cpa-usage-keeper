@@ -46,6 +46,8 @@ type queuedUsageDetail struct {
 	UserAgent           *string         `json:"user_agent"`
 	Tokens              dto.TokenStats  `json:"tokens"`
 	Failed              bool            `json:"failed"`
+	ErrorCode           *string         `json:"error_code"`
+	ErrorMessage        *string         `json:"error_message"`
 	Generate            *bool           `json:"generate"`
 	Provider            string          `json:"provider"`
 	Model               string          `json:"model"`
@@ -78,6 +80,27 @@ func trimRedisOptionalString(value *string) *string {
 		return nil
 	}
 	return &trimmed
+}
+
+const (
+	redisErrorCodeMaxRunes    = 64
+	redisErrorMessageMaxRunes = 1024
+)
+
+func normalizeRedisErrorText(value *string, maxRunes int) *string {
+	if value == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*value)
+	if trimmed == "" {
+		return nil
+	}
+	runes := []rune(trimmed)
+	if len(runes) <= maxRunes {
+		return &trimmed
+	}
+	truncated := string(runes[:maxRunes])
+	return &truncated
 }
 
 func normalizeRedisGenerate(value *bool, failed bool, executorType string, tokens dto.TokenStats) *bool {
@@ -133,6 +156,8 @@ func (d queuedUsageDetail) toUsageEvent(fetchedAt time.Time) entities.UsageEvent
 		Source:              source,
 		AuthIndex:           authIndex,
 		Failed:              d.Failed,
+		ErrorCode:           normalizeRedisErrorText(d.ErrorCode, redisErrorCodeMaxRunes),
+		ErrorMessage:        normalizeRedisErrorText(d.ErrorMessage, redisErrorMessageMaxRunes),
 		Generate:            normalizeRedisGenerate(d.Generate, d.Failed, d.ExecutorType, d.Tokens),
 		LatencyMS:           max(d.LatencyMS, 0),
 		TTFTMS:              d.TTFTMS,

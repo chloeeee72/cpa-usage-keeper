@@ -24,7 +24,9 @@ type UsageEvent struct {
 	Source              string
 	AuthIndex           string `gorm:"index:idx_usage_events_auth_index;index:idx_usage_events_auth_type_auth_index_id,priority:2;index:idx_usage_events_auth_index_timestamp_id,priority:1"`
 	Failed              bool
-	Generate            *bool `gorm:"column:generate;not null;default:true"`
+	ErrorCode           *string `gorm:"column:error_code"`
+	ErrorMessage        *string `gorm:"column:error_message"`
+	Generate            *bool   `gorm:"column:generate;not null;default:true"`
 	LatencyMS           int64
 	TTFTMS              *int64 `gorm:"column:ttft_ms"`
 	InputTokens         int64
