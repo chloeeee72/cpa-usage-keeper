@@ -85,6 +85,8 @@ const (
 	migrationAddUsageIdentityBalanceSession = "20260819_add_usage_identity_balance_session"
 	// migrationAddUsageEventErrorFields 为请求事件保存错误短码与原因。
 	migrationAddUsageEventErrorFields = "20260820_add_usage_event_error_fields"
+	// migrationCodexQuotaHistory 创建 Codex 主额度周期父表和整数百分比状态子表。
+	migrationCodexQuotaHistory = "20260820_codex_quota_history"
 )
 
 type schemaMigration struct {
@@ -206,6 +208,8 @@ func orderedMigrations() []databaseMigration {
 		{version: migrationDropRankingTables, run: dropRankingTablesMigration},
 		{version: migrationAddUsageIdentityBalanceSession, run: addUsageIdentityBalanceSessionMigration},
 		{version: migrationAddUsageEventErrorFields, run: addUsageEventErrorFieldsMigration},
+		// 新表 migration 使用默认单事务，schema 与版本标记必须一起提交或回滚。
+		{version: migrationCodexQuotaHistory, run: createCodexQuotaHistoryMigration},
 	}
 }
 

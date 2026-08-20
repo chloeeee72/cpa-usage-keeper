@@ -82,6 +82,8 @@ func TestOrderedMigrationsPreservesExecutionOrder(t *testing.T) {
 		"20260818_drop_ranking_tables",
 		"20260819_add_usage_identity_balance_session",
 		"20260820_add_usage_event_error_fields",
+		// Codex 主额度历史是当前最新 schema，必须在既有迁移之后创建父子表。
+		"20260820_codex_quota_history",
 	}
 	assertStringSlicesEqual(t, want, got)
 }
