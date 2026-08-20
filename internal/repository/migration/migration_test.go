@@ -80,6 +80,7 @@ func TestOrderedMigrationsPreservesExecutionOrder(t *testing.T) {
 		"20260818_usage_overview_pricing_period",
 		"20260818_model_price_peak_hours_config",
 		"20260818_drop_ranking_tables",
+		"20260819_add_usage_identity_balance_session",
 	}
 	assertStringSlicesEqual(t, want, got)
 }
