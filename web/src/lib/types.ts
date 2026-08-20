@@ -372,6 +372,9 @@ export interface UsageIdentity {
   last_used_at?: string
   stats_updated_at?: string
   credential_health?: UsageCredentialHealth
+  balance_session_supported?: boolean
+  balance_session_configured?: boolean
+  api_key_masked?: string
   is_deleted: boolean
   created_at: string
   updated_at: string
@@ -795,6 +798,43 @@ export interface UsageRangeRequest {
 
 export type UsageActivityRequest = UsageRangeRequest | {
 	window: UsageActivityWindow | 'today' | 'yesterday'
+}
+
+export interface TokenRhythmBalanceSummary {
+  balanceCny: number
+  availableBalanceCny: number
+  frozenBalanceCny: number
+  expiringBalanceCny: number
+  nextExpiryAt: string
+  calls: number
+  costCny: number
+}
+
+export interface TokenRhythmBalanceTotals {
+  balance_cny: number
+  available_balance_cny: number
+  frozen_balance_cny: number
+  expiring_balance_cny: number
+  calls: number
+  cost_cny: number
+}
+
+export interface BalanceQueryItem {
+  identity_id: string
+  display_name: string
+  type: string
+  provider: string
+  error?: string
+  summary?: TokenRhythmBalanceSummary
+}
+
+export interface BalanceQueryResponse {
+  items: BalanceQueryItem[]
+  totals: TokenRhythmBalanceTotals
+  configured_count: number
+  succeeded_count: number
+  failed_count: number
+  generated_at: string
 }
 
 export interface UsageFilterWindow {

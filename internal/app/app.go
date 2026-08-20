@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"strings"
 	"sync"
@@ -12,6 +13,7 @@ import (
 
 	"cpa-usage-keeper/internal/api"
 	"cpa-usage-keeper/internal/auth"
+	"cpa-usage-keeper/internal/balance"
 	"cpa-usage-keeper/internal/config"
 	"cpa-usage-keeper/internal/cpa"
 	"cpa-usage-keeper/internal/logging"
@@ -59,8 +61,8 @@ type App struct {
 	RedisIngest  Runner
 	RedisProcess Runner
 	// UsageAggregation 是唯一串行调度三类派生聚合事务的后台 runner。
-	UsageAggregation Runner
-	Maintenance      *StorageCleanupRunner
+	UsageAggregation  Runner
+	Maintenance       *StorageCleanupRunner
 	MetadataSync      *MetadataSyncRunner
 	QuotaService      QuotaRunner
 	QuotaAutoRefresh  QuotaRunner
@@ -244,6 +246,10 @@ func NewWithConfig(cfg config.Config) (*App, error) {
 	usageIdentityService := service.NewUsageIdentityServiceWithOptions(db, recentUsageCache, service.UsageIdentityServiceOptions{
 		OnDisplayNameChanged: quotaService.UpdateUsageIdentityDisplayNameSnapshot,
 	})
+	balanceService := service.NewBalanceService(db, balance.NewClient(balance.ClientOptions{
+		BaseURL:    "https://tokenrhythm.studio",
+		HTTPClient: &http.Client{Timeout: 8 * time.Second},
+	}))
 	cpaAPIKeyService := service.NewCPAAPIKeyService(db)
 	authFilesManagementService := service.NewAuthFilesManagementService(cpaClient)
 	if cfg.TLSSkipVerify {
@@ -275,8 +281,8 @@ func NewWithConfig(cfg config.Config) (*App, error) {
 		// Redis ingest/process 分成两个后台 runner，避免远端订阅拉取和本地 SQLite 处理互相等待。
 		RedisIngest:       redisIngestRunner,
 		RedisProcess:      redisProcessRunner,
-		UsageAggregation: usageAggregationRunner,
-		Maintenance:      NewStorageCleanupRunner(syncService),
+		UsageAggregation:  usageAggregationRunner,
+		Maintenance:       NewStorageCleanupRunner(syncService),
 		MetadataSync:      metadataSyncRunner,
 		QuotaService:      quotaService,
 		QuotaAutoRefresh:  quotaService,
@@ -297,11 +303,12 @@ func NewWithConfig(cfg config.Config) (*App, error) {
 				Quota:         quotaService,
 				CPAAPIKeys:    cpaAPIKeyService,
 				AuthFiles:     authFilesManagementService,
-				RequestLogs: requestLogService,
+				RequestLogs:   requestLogService,
 				Status: api.StatusRouteConfig{
 					CPAPublicURL:               cfg.CPAPublicURL,
 					CPARequestLogAccessEnabled: cfg.CPARequestLogAccessEnabled,
 				},
+				Balance: balanceService,
 			},
 		),
 	}, nil

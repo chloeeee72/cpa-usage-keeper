@@ -12,25 +12,26 @@ const (
 
 // UsageIdentity 是从 CPA auth_files 和 provider config 同步出的 usage source 身份实体。
 type UsageIdentity struct {
-	ID           int64  `gorm:"primaryKey;index:idx_usage_identities_auth_type_name_id,priority:3"`
-	Name         string `gorm:"index:idx_usage_identities_auth_type_name_id,priority:2"`
-	Alias        *string
-	AuthType     UsageIdentityAuthType `gorm:"uniqueIndex:uniq_usage_identities_type_identity;index:idx_usage_identities_auth_type_name_id,priority:1;index:idx_usage_identities_auth_type_type,priority:1"`
-	AuthTypeName string
-	Identity     string `gorm:"uniqueIndex:uniq_usage_identities_type_identity"`
-	Type         string `gorm:"column:type;index:idx_usage_identities_auth_type_type,priority:2"`
-	Provider     string
-	LookupKey    string
-	Prefix       string
-	BaseURL      string
-	FileName     *string
-	FilePath     *string
-	Priority     *int
-	Disabled     *bool
-	Note         *string
-	AccountID    *string
-	ProjectID    *string
-	XAIUserID    *string
+	ID             int64  `gorm:"primaryKey;index:idx_usage_identities_auth_type_name_id,priority:3"`
+	Name           string `gorm:"index:idx_usage_identities_auth_type_name_id,priority:2"`
+	Alias          *string
+	AuthType       UsageIdentityAuthType `gorm:"uniqueIndex:uniq_usage_identities_type_identity;index:idx_usage_identities_auth_type_name_id,priority:1;index:idx_usage_identities_auth_type_type,priority:1"`
+	AuthTypeName   string
+	Identity       string `gorm:"uniqueIndex:uniq_usage_identities_type_identity"`
+	Type           string `gorm:"column:type;index:idx_usage_identities_auth_type_type,priority:2"`
+	Provider       string
+	LookupKey      string
+	Prefix         string
+	BaseURL        string
+	FileName       *string
+	FilePath       *string
+	Priority       *int
+	Disabled       *bool
+	Note           *string
+	AccountID      *string
+	ProjectID      *string
+	XAIUserID      *string
+	BalanceSession *string
 
 	ActiveStart *time.Time `gorm:"serializer:storageTime"`
 	ActiveUntil *time.Time `gorm:"serializer:storageTime"`

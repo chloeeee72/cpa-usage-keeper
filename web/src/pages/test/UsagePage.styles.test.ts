@@ -773,7 +773,7 @@ describe('UsagePage toolbar styles', () => {
     expect(usagePageSource).toContain('logout')
     expect(usagePageSource).toContain('fetchUpdateCheck')
     expect(usagePageSource.indexOf("t('usage_stats.check_updates')")).toBeLessThan(usagePageSource.indexOf("t('common.logout')"))
-    expect(usagePageSource.match(/<MainActionButton/g)).toHaveLength(2)
+    expect(usagePageSource.match(/<MainActionButton/g)).toHaveLength(3)
     expect(keyOverviewPageSource.match(/<MainActionButton/g)).toHaveLength(2)
     expect(usagePageSource).toContain("aria-label={t('common.logout')}")
     expect(keyOverviewPageSource).toContain("aria-label={t('common.logout')}")

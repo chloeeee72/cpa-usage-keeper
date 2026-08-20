@@ -137,7 +137,7 @@ const (
 	UsageIdentityPageSortLastUsedAt    = "last_used_at"
 )
 
-const usageIdentityReadColumns = "id, name, alias, auth_type, auth_type_name, identity, type, provider, lookup_key, prefix, base_url, file_name, file_path, priority, disabled, note, account_id, project_id, xai_user_id, active_start, active_until, plan_type, total_requests, success_count, failure_count, input_tokens, output_tokens, reasoning_tokens, cached_tokens, cache_read_tokens, total_tokens, last_aggregated_usage_event_id, first_used_at, last_used_at, stats_updated_at, is_deleted, created_at, updated_at, deleted_at"
+const usageIdentityReadColumns = "id, name, alias, auth_type, auth_type_name, identity, type, provider, lookup_key, prefix, base_url, file_name, file_path, priority, disabled, note, account_id, project_id, xai_user_id, balance_session, active_start, active_until, plan_type, total_requests, success_count, failure_count, input_tokens, output_tokens, reasoning_tokens, cached_tokens, cache_read_tokens, total_tokens, last_aggregated_usage_event_id, first_used_at, last_used_at, stats_updated_at, is_deleted, created_at, updated_at, deleted_at"
 
 const usageIdentityAggregationColumns = "id, auth_type, identity, total_requests, success_count, failure_count, input_tokens, output_tokens, reasoning_tokens, cached_tokens, cache_read_tokens, total_tokens, last_aggregated_usage_event_id, first_used_at, last_used_at"
 
@@ -233,6 +233,33 @@ func UpdateUsageIdentityAlias(ctx context.Context, db *gorm.DB, id int64, alias 
 		Model(&entities.UsageIdentity{}).
 		Where("id = ? AND is_deleted = ?", id, false).
 		Update("alias", value)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+func UpdateUsageIdentityBalanceSession(ctx context.Context, db *gorm.DB, id int64, session *string) error {
+	if db == nil {
+		return fmt.Errorf("database is nil")
+	}
+	if id <= 0 {
+		return gorm.ErrRecordNotFound
+	}
+	var value any
+	if session != nil {
+		trimmed := strings.TrimSpace(*session)
+		if trimmed != "" {
+			value = trimmed
+		}
+	}
+	result := db.WithContext(ctx).
+		Model(&entities.UsageIdentity{}).
+		Where("id = ? AND is_deleted = ?", id, false).
+		Update("balance_session", value)
 	if result.Error != nil {
 		return result.Error
 	}

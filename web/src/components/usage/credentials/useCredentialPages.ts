@@ -14,13 +14,17 @@ export const CREDENTIAL_PAGES_REFRESH_INTERVAL_MS = 60 * 1000
 
 const AUTH_FILE_ACTIVE_ONLY_STORAGE_KEY = 'cpa-usage-keeper-auth-files-active-only'
 
-export function mergeUsageIdentityAliasUpdate(current: UsageIdentity, updated: UsageIdentity): UsageIdentity {
+export function mergeUsageIdentityUpdate(current: UsageIdentity, updated: UsageIdentity): UsageIdentity {
   return {
     ...current,
     alias: updated.alias ?? null,
     displayName: updated.displayName ?? current.displayName,
+    balance_session_supported: updated.balance_session_supported ?? current.balance_session_supported,
+    balance_session_configured: updated.balance_session_configured ?? current.balance_session_configured,
   }
 }
+
+export const mergeUsageIdentityAliasUpdate = mergeUsageIdentityUpdate
 
 const getInitialAuthFileActiveOnly = () => {
   if (typeof window === 'undefined') return false

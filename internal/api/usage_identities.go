@@ -75,6 +75,9 @@ type usageIdentityResponse struct {
 	UpdatedAt                  time.Time                      `json:"updated_at"`
 	DeletedAt                  *time.Time                     `json:"deleted_at,omitempty"`
 	CredentialHealth           *usageCredentialHealthResponse `json:"credential_health,omitempty"`
+	BalanceSessionSupported    bool                           `json:"balance_session_supported"`
+	BalanceSessionConfigured   bool                           `json:"balance_session_configured"`
+	APIKeyMasked               string                         `json:"api_key_masked,omitempty"`
 }
 
 type usageCredentialHealthResponse struct {
@@ -265,6 +268,11 @@ func mapUsageIdentityResponseWithHealth(item entities.UsageIdentity, health *ser
 		disabled = *item.Disabled
 	}
 
+	apiKeyMasked := ""
+	if item.AuthType == entities.UsageIdentityAuthTypeAIProvider && strings.TrimSpace(item.LookupKey) != "" {
+		apiKeyMasked = helper.MaskAPIKeyDisplay(item.LookupKey)
+	}
+
 	return usageIdentityResponse{
 		ID:                         strconv.FormatInt(item.ID, 10),
 		Name:                       item.Name,
@@ -301,6 +309,9 @@ func mapUsageIdentityResponseWithHealth(item entities.UsageIdentity, health *ser
 		UpdatedAt:                  item.UpdatedAt,
 		DeletedAt:                  item.DeletedAt,
 		CredentialHealth:           mapUsageCredentialHealthResponse(health),
+		BalanceSessionSupported:    service.SupportsTokenRhythmBalance(item),
+		BalanceSessionConfigured:   item.BalanceSession != nil && strings.TrimSpace(*item.BalanceSession) != "",
+		APIKeyMasked:               apiKeyMasked,
 	}
 }
 

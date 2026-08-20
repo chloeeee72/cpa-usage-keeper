@@ -8,7 +8,8 @@ import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 import { MainActionButton } from '@/components/ui/MainActionButton';
 import { Modal } from '@/components/ui/Modal';
-import { IconRefreshCw } from '@/components/ui/icons';
+import { IconDollarSign, IconRefreshCw } from '@/components/ui/icons';
+import { BalanceQueryModal } from '@/components/usage/balance/BalanceQueryModal';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import { useThemeStore } from '@/stores';
@@ -1031,6 +1032,7 @@ export function UsagePage({ onAuthRequired }: { onAuthRequired?: () => void }) {
   const eventsFilterOptionsRequestControllerRef = useRef<AbortController | null>(null);
   const requestLogControllerRef = useRef<AbortController | null>(null);
   const [manualRefreshLoading, setManualRefreshLoading] = useState(false);
+  const [balanceModalOpen, setBalanceModalOpen] = useState(false);
   const [pageVisible, setPageVisible] = useState(isUsagePageVisible);
   const showTopNotice = useCallback((kind: TopNoticeKind, message: string) => {
     if (topNoticeTimerRef.current !== null) {
@@ -1906,18 +1908,20 @@ export function UsagePage({ onAuthRequired }: { onAuthRequired?: () => void }) {
             )}
             {(!isEmbeddedInCPAMC && cpaManagementURL) && (
               <a
-                className={styles.backToCpaLink}
+                className={`${styles.backToCpaAction} main-action-button-shell`}
                 href={cpaManagementURL}
                 target="_blank"
                 rel="noreferrer"
                 aria-label={t('usage_stats.back_to_cpa_aria')}
               >
-                <span>{t('usage_stats.back_to_cpa')}</span>
-                <span className={styles.backToCpaIcon} aria-hidden="true">
-                  <svg viewBox="0 0 16 16" focusable="false">
-                    <path d="M6 4h6v6" />
-                    <path d="M12 4 5 11" />
-                  </svg>
+                <span className="btn btn-primary btn-action main-action-button">
+                  <span>{t('usage_stats.back_to_cpa')}</span>
+                  <span className={styles.backToCpaIcon} aria-hidden="true">
+                    <svg viewBox="0 0 16 16" focusable="false">
+                      <path d="M6 4h6v6" />
+                      <path d="M12 4 5 11" />
+                    </svg>
+                  </span>
                 </span>
               </a>
             )}
@@ -2026,23 +2030,38 @@ export function UsagePage({ onAuthRequired }: { onAuthRequired?: () => void }) {
                   </div>
                   )}
                 </div>
-                <div className={styles.usageRefreshSlot}>
-                  <div className={styles.usageFilterActions}>
-                    <MainActionButton
-                      type="button"
-                      shellClassName={styles.refreshMainActionShell}
-                      className={styles.refreshMainActionButton}
-                      onClick={() => void handleManualRefresh().catch(() => {})}
-                      disabled={manualRefreshLoading}
-                      loading={manualRefreshLoading}
-                    >
-                      {manualRefreshLoading ? t('common.loading') : (
-                        <>
-                          <IconRefreshCw size={14} />
-                          <span>{t('usage_stats.refresh')}</span>
-                        </>
-                      )}
-                    </MainActionButton>
+                <div className={styles.usageActionsGroup}>
+                  {activeTab === 'ai-provider' && (
+                    <div className={styles.balanceQuerySlot}>
+                      <MainActionButton
+                        type="button"
+                        shellClassName={styles.refreshMainActionShell}
+                        className={styles.refreshMainActionButton}
+                        onClick={() => setBalanceModalOpen(true)}
+                      >
+                        <IconDollarSign size={14} />
+                        <span>{t('usage_stats.balance_query')}</span>
+                      </MainActionButton>
+                    </div>
+                  )}
+                  <div className={styles.usageRefreshSlot}>
+                    <div className={styles.usageFilterActions}>
+                      <MainActionButton
+                        type="button"
+                        shellClassName={styles.refreshMainActionShell}
+                        className={styles.refreshMainActionButton}
+                        onClick={() => void handleManualRefresh().catch(() => {})}
+                        disabled={manualRefreshLoading}
+                        loading={manualRefreshLoading}
+                      >
+                        {manualRefreshLoading ? t('common.loading') : (
+                          <>
+                            <IconRefreshCw size={14} />
+                            <span>{t('usage_stats.refresh')}</span>
+                          </>
+                        )}
+                      </MainActionButton>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2195,7 +2214,9 @@ export function UsagePage({ onAuthRequired }: { onAuthRequired?: () => void }) {
                       sort={credentialsData.aiProviderSort}
                       loading={credentialsData.loading}
                       aliasSavingId={credentialsData.aliasSavingId}
+                      balanceSessionSavingId={credentialsData.balanceSessionSavingId}
                       onSaveAlias={credentialsData.saveUsageIdentityAlias}
+                      onSaveBalanceSession={credentialsData.saveUsageIdentityBalanceSession}
                       onPageChange={credentialsData.setAiProviderPage}
                       onPageSizeChange={credentialsData.setAiProviderPageSize}
                       onSortChange={credentialsData.setAiProviderSort}
@@ -2249,6 +2270,11 @@ export function UsagePage({ onAuthRequired }: { onAuthRequired?: () => void }) {
       >
         <p className={styles.sessionSettingsConfirmText}>{t('usage_stats.logout_confirm_body')}</p>
       </Modal>
+      <BalanceQueryModal
+        open={balanceModalOpen}
+        onClose={() => setBalanceModalOpen(false)}
+        onAuthRequired={onAuthRequired}
+      />
     </div>
   );
 }

@@ -21,6 +21,16 @@ func RedactSensitiveValue(value string) string {
 	return string(runes[:3]) + sensitiveValueMask + string(runes[len(runes)-6:])
 }
 
+// MaskAPIKeyDisplay 按“前 6 位 + ***** + 后 5 位”展示 API Key；长度不足以切分时整体遮蔽。
+func MaskAPIKeyDisplay(value string) string {
+	trimmed := strings.TrimSpace(value)
+	runes := []rune(trimmed)
+	if len(runes) <= 11 {
+		return sensitiveValueMask
+	}
+	return string(runes[:6]) + "*****" + string(runes[len(runes)-5:])
+}
+
 // CPAAPIKeyMaskedDisplayKey 返回 CPA API Key 的安全展示 key；优先基于原始 key 重新脱敏，避免历史 DisplayKey 格式不一致。
 func CPAAPIKeyMaskedDisplayKey(row entities.CPAAPIKey) string {
 	if strings.TrimSpace(row.APIKey) != "" {

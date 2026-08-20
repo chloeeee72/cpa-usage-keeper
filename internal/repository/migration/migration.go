@@ -81,6 +81,8 @@ const (
 	migrationModelPricePeakHoursConfig = "20260818_model_price_peak_hours_config"
 	// migrationDropRankingTables 彻底删除已废弃的 Ranking 存储。
 	migrationDropRankingTables = "20260818_drop_ranking_tables"
+	// migrationAddUsageIdentityBalanceSession 为 TokenRhythm 余额查询保存 tr_session Cookie 值。
+	migrationAddUsageIdentityBalanceSession = "20260819_add_usage_identity_balance_session"
 )
 
 type schemaMigration struct {
@@ -200,6 +202,7 @@ func orderedMigrations() []databaseMigration {
 		{version: migrationUsageOverviewPricingPeriod, run: usageOverviewPricingPeriodMigration, disableTransaction: true},
 		{version: migrationModelPricePeakHoursConfig, run: modelPricePeakHoursConfigMigration},
 		{version: migrationDropRankingTables, run: dropRankingTablesMigration},
+		{version: migrationAddUsageIdentityBalanceSession, run: addUsageIdentityBalanceSessionMigration},
 	}
 }
 

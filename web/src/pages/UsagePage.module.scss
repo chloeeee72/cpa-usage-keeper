@@ -267,31 +267,9 @@
   min-width: 0;
 }
 
-.backToCpaLink {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 26px;
-  padding: 5px 9px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--bg-secondary) 58%, transparent);
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 650;
-  line-height: 1;
+.backToCpaAction {
   text-decoration: none;
   white-space: nowrap;
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
-
-  &:hover {
-    color: var(--text-primary);
-    border-color: color-mix(in srgb, var(--primary-color) 28%, var(--border-color));
-    background: color-mix(in srgb, var(--bg-primary) 88%, transparent);
-    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
-    transform: translateY(-1px);
-  }
 
   &:focus-visible {
     outline: 2px solid var(--primary-color);
@@ -595,11 +573,33 @@
   white-space: nowrap;
 }
 
+.usageActionsGroup {
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  gap: 10px;
+  flex: 0 0 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
 .usageRefreshSlot {
   display: flex;
   justify-content: flex-end;
   flex: 0 0 auto;
   min-width: 0;
+}
+
+.balanceQuerySlot {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.balanceQueryButton {
+  height: 100%;
+  white-space: nowrap;
 }
 
 .usageFilterActions {
@@ -654,8 +654,22 @@
   .usageRefreshSlot,
   .usageFilterActions,
   .refreshMainActionShell,
-  .refreshMainActionButton {
+  .refreshMainActionButton,
+  .balanceQuerySlot,
+  .balanceQueryButton {
     width: 100%;
+  }
+
+  .usageActionsGroup {
+    width: 100%;
+    flex-wrap: nowrap;
+  }
+
+  .usageActionsGroup .balanceQuerySlot,
+  .usageActionsGroup .usageRefreshSlot,
+  .usageActionsGroup .usageFilterActions {
+    width: auto;
+    margin-left: 0;
   }
 
   .toolbarActionsRightAnimated {

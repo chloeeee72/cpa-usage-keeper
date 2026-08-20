@@ -1,7 +1,11 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styles from './CredentialSections.module.scss'
 import type { AiProviderCredentialRow } from './credentialViewModels'
 import type { UsageIdentityPageSort } from '@/lib/api'
+import { Button } from '@/components/ui/Button'
+import { IconKey } from '@/components/ui/icons'
+import { BalanceSessionModal } from './BalanceSessionModal'
 import { CredentialAliasEditor, isCredentialAliasEditorDisabled } from './CredentialAliasEditor'
 import { CredentialHealthPanel } from './CredentialHealthPanel'
 import { CredentialPriorityBadge, CredentialRowShell, CredentialSectionShell, CredentialTableHeader, CredentialsPagination, MetricPill, RequestMetric, TonePercent, cacheReadRateTone, formatCredentialNumber, successRateTone } from './CredentialSectionShell'
@@ -16,14 +20,17 @@ interface AiProviderCredentialsSectionProps {
   sort: UsageIdentityPageSort
   loading: boolean
   aliasSavingId?: string
+  balanceSessionSavingId?: string
   onSaveAlias?: (id: string, alias: string) => Promise<void>
+  onSaveBalanceSession?: (id: string, session: string | null) => Promise<void>
   onPageChange: (page: number) => void
   onPageSizeChange: (pageSize: number) => void
   onSortChange: (sort: UsageIdentityPageSort) => void
 }
 
-export function AiProviderCredentialsSection({ rows, total, page, totalPages, pageSize, sort, loading, aliasSavingId, onSaveAlias, onPageChange, onPageSizeChange, onSortChange }: AiProviderCredentialsSectionProps) {
+export function AiProviderCredentialsSection({ rows, total, page, totalPages, pageSize, sort, loading, aliasSavingId, balanceSessionSavingId, onSaveAlias, onSaveBalanceSession, onPageChange, onPageSizeChange, onSortChange }: AiProviderCredentialsSectionProps) {
   const { t } = useTranslation()
+  const [sessionEditingRow, setSessionEditingRow] = useState<AiProviderCredentialRow | null>(null)
 
   return (
     <CredentialSectionShell
@@ -72,7 +79,27 @@ export function AiProviderCredentialsSection({ rows, total, page, totalPages, pa
               <MetricPill value={<TonePercent value={row.cacheReadRate} tone={cacheReadRateTone(row.cacheReadRate)} />} />
             </>
           )}
-          side={<CredentialHealthPanel displayName={row.displayName} health={row.credentialHealth} lastUsedAt={row.lastUsedText} statsUpdatedAt={row.statsUpdatedText} />}
+          side={(
+            <div className={styles.aiProviderCredentialSide}>
+              <CredentialHealthPanel displayName={row.displayName} health={row.credentialHealth} lastUsedAt={row.lastUsedText} statsUpdatedAt={row.statsUpdatedText} />
+              {row.identity.balance_session_supported && onSaveBalanceSession && (
+                <div className={styles.credentialBalanceSessionAction}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSessionEditingRow(row)}
+                    disabled={balanceSessionSavingId === row.identity.id}
+                  >
+                    <IconKey size={12} />
+                    {row.identity.balance_session_configured
+                      ? t('usage_stats.credentials_balance_session_configured')
+                      : t('usage_stats.credentials_balance_session_configure')}
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
           rowClassName={styles.aiProviderCredentialRow}
         />
       ))}
@@ -95,6 +122,19 @@ export function AiProviderCredentialsSection({ rows, total, page, totalPages, pa
         onPageChange={onPageChange}
         onPageSizeChange={onPageSizeChange}
         onSortChange={(nextSort) => onSortChange(nextSort as UsageIdentityPageSort)}
+      />
+      <BalanceSessionModal
+        key={sessionEditingRow?.identity.id ?? 'closed'}
+        open={sessionEditingRow !== null}
+        identityId={sessionEditingRow?.identity.id ?? null}
+        displayName={sessionEditingRow?.displayName ?? ''}
+        apiKeyMasked={sessionEditingRow?.identity.api_key_masked}
+        configured={Boolean(sessionEditingRow?.identity.balance_session_configured)}
+        saving={sessionEditingRow ? balanceSessionSavingId === sessionEditingRow.identity.id : false}
+        onClose={() => setSessionEditingRow(null)}
+        onSave={async (id, session) => {
+          await onSaveBalanceSession?.(id, session)
+        }}
       />
     </CredentialSectionShell>
   )

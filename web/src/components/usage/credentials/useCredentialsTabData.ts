@@ -9,7 +9,7 @@ import {
 import { useCredentialPages } from './useCredentialPages'
 import { useQuotaCache } from './useQuotaCache'
 import { useQuotaInspection } from './useQuotaInspection'
-import { ApiError, resetUsageQuota, updateUsageIdentityAlias, type UsageIdentityPageSort } from '@/lib/api'
+import { ApiError, resetUsageQuota, updateUsageIdentityAlias, updateUsageIdentityBalanceSession, type UsageIdentityPageSort } from '@/lib/api'
 import i18n from '@/i18n'
 import type { UsageIdentityTypeCount, UsageQuotaCheckResponse, UsageQuotaInspectionStatusResponse } from '@/lib/types'
 import { quotaRefreshDisplayError, useQuotaRefreshTasks, type QuotaState } from './useQuotaRefreshTasks'
@@ -64,8 +64,10 @@ export interface CredentialsTabData {
   quotaInspectionStarting: boolean
   quotaInspectionError: string
   aliasSavingId: string
+  balanceSessionSavingId: string
   refresh: () => Promise<void>
   saveUsageIdentityAlias: (id: string, alias: string) => Promise<void>
+  saveUsageIdentityBalanceSession: (id: string, session: string | null) => Promise<void>
   refreshQuotaForCurrentAuthFilePage: () => Promise<void>
   refreshQuotaForAuthIndex: (authIndex: string) => Promise<void>
   resetQuotaForAuthIndex: (authIndex: string) => Promise<void>
@@ -93,6 +95,7 @@ export function useCredentialsTabData({ enabledAuthFiles, enabledAiProviders, on
   const { refreshQuotaForAuthIndex } = quotaRefreshTasks
   const [quotaResetStateByAuthIndex, setQuotaResetStateByAuthIndex] = useState<Record<string, CredentialResetState>>({})
   const [aliasSavingId, setAliasSavingId] = useState('')
+  const [balanceSessionSavingId, setBalanceSessionSavingId] = useState('')
   const quotaInspection = useQuotaInspection({
     enabled: enabledAuthFiles,
     onAuthRequired,
@@ -134,6 +137,25 @@ export function useCredentialsTabData({ enabledAuthFiles, enabledAiProviders, on
       throw error
     } finally {
       setAliasSavingId((current) => (current === id ? '' : current))
+    }
+  }, [credentialPages, onAuthRequired, onNotice])
+
+  const saveUsageIdentityBalanceSession = useCallback(async (id: string, session: string | null) => {
+    setBalanceSessionSavingId(id)
+    try {
+      const updated = await updateUsageIdentityBalanceSession(id, session)
+      credentialPages.replaceUsageIdentity(updated)
+      onNotice?.('success', i18n.t('usage_stats.credentials_balance_session_save_success'))
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        if (onAuthRequired) {
+          onAuthRequired()
+        }
+      }
+      onNotice?.('error', i18n.t('usage_stats.credentials_balance_session_save_failed'))
+      throw error
+    } finally {
+      setBalanceSessionSavingId((current) => (current === id ? '' : current))
     }
   }, [credentialPages, onAuthRequired, onNotice])
 
@@ -199,8 +221,10 @@ export function useCredentialsTabData({ enabledAuthFiles, enabledAiProviders, on
     quotaInspectionStarting: quotaInspection.quotaInspectionStarting,
     quotaInspectionError: quotaInspection.quotaInspectionError,
     aliasSavingId,
+    balanceSessionSavingId,
     refresh: refresh,
     saveUsageIdentityAlias,
+    saveUsageIdentityBalanceSession,
     refreshQuotaForCurrentAuthFilePage: quotaRefreshTasks.refreshQuotaForCurrentAuthFilePage,
     refreshQuotaForAuthIndex: quotaRefreshTasks.refreshQuotaForAuthIndex,
     resetQuotaForAuthIndex,

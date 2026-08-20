@@ -54,6 +54,7 @@ type OptionalProviders struct {
 	AuthFiles     service.AuthFilesManagementProvider
 	RequestLogs   service.RequestLogProvider
 	Status        StatusRouteConfig
+	Balance       service.BalanceProvider
 }
 
 func NewRouter(
@@ -95,6 +96,7 @@ func NewRouter(
 	var authFilesProvider service.AuthFilesManagementProvider
 	var requestLogProvider service.RequestLogProvider
 	var statusConfig StatusRouteConfig
+	var balanceProvider service.BalanceProvider
 	if len(optionalProviders) > 0 {
 		usageIdentityProvider = optionalProviders[0].UsageIdentity
 		quotaProvider = optionalProviders[0].Quota
@@ -102,6 +104,7 @@ func NewRouter(
 		authFilesProvider = optionalProviders[0].AuthFiles
 		requestLogProvider = optionalProviders[0].RequestLogs
 		statusConfig = optionalProviders[0].Status
+		balanceProvider = optionalProviders[0].Balance
 	}
 	authHandler.setCPAAPIKeyProvider(cpaAPIKeyProvider)
 	requestLogDownloadTokens := newRequestLogDownloadTokenStore()
@@ -126,6 +129,7 @@ func NewRouter(
 	registerCPAAPIKeyRoutes(adminProtected, cpaAPIKeyProvider)
 	registerPricingRoutes(adminProtected, pricingProvider)
 	registerQuotaRoutes(adminProtected, quotaProvider)
+	registerBalanceRoutes(adminProtected, balanceProvider)
 
 	keyViewerProtected := apiV1.Group("")
 	keyViewerProtected.Use(authHandler.apiKeyViewerMiddleware())

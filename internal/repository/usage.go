@@ -1228,6 +1228,11 @@ func usagePricingProjectionColumns(base string, activeFields pricing.ActiveField
 		if _, exists := seen[column]; exists {
 			continue
 		}
+		// pricing_period 只存在于 hourly/daily rollup 表；usage_events 原始表没有该列，
+		// 这里只在事件级投影中跳过，避免对 usage_events 生成非法 SQL。
+		if column == "pricing_period" {
+			continue
+		}
 		columns = append(columns, column)
 		seen[column] = struct{}{}
 	}
